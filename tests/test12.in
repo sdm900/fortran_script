@@ -1,0 +1,348 @@
+print "1    ",3.14159265359
+
+x=3.14159265359d0
+print "2    ",3.14159265359,x
+
+x=2.0d0
+y=3.0d0
+print "3    ",8.0,x**y
+
+x = 2.0d0
+y = 3.0d0
+print "4    ",x!=y,1.0d0
+
+x = 2.0d0
+y = 2.0d0
+print "5    ",0.0d0,x!=y
+
+x = 3.0d0
+y = 3.0d0
+print "6    ",1.0d0, x==y
+
+x = 3.0d0
+y = 2.0d0
+print "7    ",0.0d0, x==y
+
+x = 4.0d0
+y = 3.0d0
+print "8    ",1.0d0, x>=y
+
+x = 3.0d0
+y = 4.0d0
+print "9    ",0.0d0, x>=y
+
+x = 2.0d0
+y = 3.0d0
+print "10   ",1.0d0, x<=y
+
+x = 3.0d0
+y = 2.0d0
+print "11   ",0.0d0, x<=y
+
+x = 4.0d0
+y = 3.0d0
+print "12   ",1.0d0, x>y
+
+x = 3.0d0
+y = 4.0d0
+print "13   ",0.0d0, x>y
+
+x = 2.0d0
+y = 3.0d0
+print "14   ",1.0d0, x<y
+
+x = 3.0d0
+y = 2.0d0
+print "15   ",0.0d0, x<y
+
+x = 3.0d0
+y = 2.0d0
+print "16   ",6.0, x*y
+
+x = 3.0d0
+y = 2.0d0
+print "17   ",1.5,x/y
+
+x = 3.0d0
+y = 2.0d0
+print "19   ",5.0, x+y
+
+x = 3.0d0
+y = 2.0d0
+print "20   ",1,x-y
+
+x = 3.0d0
+print "21   ",cos(x)
+
+x = 3.0d0
+print "22   ",sin(x)
+
+x = 3.0d0
+print "23   ",tan(x)
+
+x = 3.0d0
+print "24   ",exp(x)
+
+x = 3.0d0
+print "25   ",log(x)
+
+x = 3.0d0
+print "27   ",log10(x)
+
+x = 3.0d0
+print "29   ",sqrt(x)
+
+x = 0.3d0
+print "31   ",acos(x)
+
+x = 0.3d0
+print "33   ",asin(x)
+
+x = 0.3d0
+print "35   ",atan(x)
+
+x = 0.3d0
+print "36   ",cosh(x)
+
+x = 0.3d0
+print "37   ",sinh(x)
+
+x = 0.3d0
+print "38   ",tanh(x)
+
+x = 1.3d0
+print "39   ",anint(x)
+
+x = 1.7d0
+print "40   ",aint(x)
+
+x = -1.7d0
+print "41   ",abs(x)
+
+x = 0.0d0
+print "42   ",1.0d0, delta(x)
+
+x = 1.0d0
+print "43   ",1.0d0, step(x)
+
+x = 1.0d0
+print "44   ",0.0d0, hat(x)
+
+x = 1.1d0
+y = 2.2d0
+z = 3.3d0
+print "45   ",(x +y+z+x*y +x*z+y*z+x/y +x /z+y/z+x*cos ( x)    +y*sin(y)+z*tan(z))**2/(x+y+z+x*y+x*z+y*z+x/y+x/z+y/z+x*cos(x)+y*sin(y)+z*tan(z))**3+sqrt(x*y*z+x+y+z)*exp(sqrt(x**2+y**2+z**2)+x+y+z)
+
+x = 1.1d0
+y = 2.2d0
+z = 3.3d0
+print "46   ",cos(x)+sin(y)+z**2
+
+x = 1.1d0
+y = 2.2d0
+z = 3.3d0
+print "47   ",x+y*z+1-cos(x**y)
+
+print "48   ",7.1323d-05
+
+
+x = 1.0d0
+y = 2.0d0
+print "49   ",3, x+y
+
+x = 2.d0
+y = 1.5d0
+z = -1.d0
+print "50   ",(((x+y)/(x+y)-exp(y)+exp(y))/2.0)-z
+
+x = 1.0d0
+y = 1.0d0
+print "52   ",2.0d0, x+y
+
+x = 1.0d0
+y = 2.0d0
+print "54   ",2,max(y, x)
+
+x = 1.0d0
+y = 2.0d0
+print "55   ",2,max(x, y)
+
+x = 1.0d0
+y = -2.0d0
+print "56   ",2,max(1+x, y)
+
+x = 1.0d0
+y = 2.0d0
+print "57   ",max(x+y, x*(x-y))
+
+x = 1.0d0
+y = 2.0d0
+print "58   ",3.0d0+max(x+y, x*(x-y))+4.0d0
+
+print "59   ",-1.0d0**4.0d0
+
+x = 1.0d0
+y = 2.0d0
+print "61   ",3.0d0+min(1.0d0+x+y, y*(y-x))**4.0d0
+
+x = 3.0d0
+print "62   ",besj0(x)
+
+x = 3.0d0
+print "63   ",besj1(x)
+
+x = 3.0d0
+y = 4.0d0
+print "64   ",besjn(x, y)
+
+x = 3.0d0
+print "65   ",besy0(x)
+
+x = 3.0d0
+print "66   ",besy1(x)
+
+x = 4.0d0
+y = 3.0d0
+print "67   ",besyn(x, y)
+
+x = 4.0d0
+y = 3.0d0
+print "68   ",log(y)/log(x), logn(x, y)
+
+x = 3.0d0
+print "71   ",erf(x)
+
+x = 3.0d0
+print "72   ",erfc(x)
+
+x = 3.0d0
+print "73   ",lgamma(x)
+
+x = 3.1d0
+print "74   ",gamma(x)
+
+x = 3.0d0
+print "75   ",TAN(x)
+
+x = 3.0d0
+print "76   ",TaN(x)
+
+x = 3.0d0
+print "77   ",taN(x)
+
+x = 3.0d0
+print "78   ",10,2*(3+2)
+
+
+print "80   ",4.0d0,   (-2.0d0)**2.0d0
+
+x = 1.1d0
+y = 2.2d0
+z = 3.3d0
+print "82   ",cos(x)+sin(y)+z**2
+
+x = 1.1d0
+print "83   ",1.0d0/sinh(x), csch(x)
+
+x = 1.1d0
+print "84   ",1.0d0/cosh(x),sech(x)
+
+x = 1.1d0
+print "85   ",1.0d0/tanh(x), coth(x)
+
+x = 1.1d0
+print "86   ",200.0d0, merge(x<1, 100, 200)
+
+x = 1.1d0
+print "87   ",100.0d0, merge(x>1, 100, 200)
+
+x = 1.1d0
+print "88   ",200.0d0, merge(x==1, 100, 200)
+
+print "90   ",1,2
+
+x = 1.1d0
+print "91   ",exp(-x**2), gauss(x)
+
+x = 1.1d0
+print "92   ",sin(x)/x, sinc(x)
+
+x = 0.0d0
+print "93   ",1.0d0, sinc(x)
+
+x = 1.0d0/3.0d0
+print "94   ",2.678938534708d0, gamma(x)
+
+x = 0.5d0
+print "95   ",1.772453850906d0, gamma(x)
+
+x = -0.5d0
+print "96   ",-3.544907701811,gamma(x) 
+
+x = -1.5d0
+print "97   ",2.363271801207d0 , gamma(x)
+
+x = 5.0d0
+print "98   ",24.0d0,gamma(x)
+
+x = 0.5d0
+print "99   ",0.572365,lgamma(x)
+
+x = 2.5d0
+print "100  ",0.284683, lgamma(x)
+
+x = 5.0d0
+print "101  ",3.17805, lgamma(x)
+
+x = 7.5d0
+print "102  ",7.53436, lgamma(x)
+
+x = 10.0d0
+print "103  ",12.8018,lgamma(x)
+
+x = 7.5d0
+print "105  ",0.266339657880378d0,besj0(x)
+
+x = 7.5d0
+print "106  ",0.135248427579705d0,besj1(x)
+
+x = 7.5d0
+y = 3.0d0
+print "107  ",-0.258060913193460d0,besjn(y, x)
+
+x = 7.5d0
+print "108  ",0.117313286148209d0,besy0(x)
+
+x = 7.5d0
+print "109  ",-0.259128510486116d0,besy1(x)
+
+x = 7.5d0
+y = 3.0d0
+print "110  ",0.159707591937935d0,besyn(y, x)
+
+x = 0.5d0
+print "111  ",0.520499877813047d0,erf(x)
+
+x = 0.5d0
+print "112  ",0.479500122186953,erfc(x)
+
+print "113  ",-1.0d0
+
+w = 0.5d0
+x = 1.1d0
+y = 2.2d0
+z = 3.3d0
+print "114  ",cos(y)+cos(w)+sin(x)+z**2
+
+print "115  ",0.5d0, (-1)/(-2)
+
+print "116  ",-0.5d0,(-1)/(2)
+
+print "117  ",0.5d0,(1)/(2)
+
+print "118  ",-0.5d0,(1)/(-2)
+
+print "119  ",-0.5d0,-(1)/(2)
+
+x=1
+print "120  ",10, merge(x==1,10,100)

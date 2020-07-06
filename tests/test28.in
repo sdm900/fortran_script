@@ -1,0 +1,5 @@
+subroutine a(b)
+print b
+end subroutine a
+call a(1)
+

@@ -1,0 +1,8 @@
+do i=1,10
+if (i<5) then
+print "i less than 5", i
+else
+print "i greater than 5", i
+end do
+end if
+

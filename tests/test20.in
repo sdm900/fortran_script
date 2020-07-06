@@ -1,0 +1,8 @@
+i=5
+if (i==10) then
+a=1
+else
+b=1
+endif
+print a
+print b

@@ -1,0 +1,30 @@
+do i=1,2
+print i
+enddo
+print i
+
+do i=1,5
+if (i==2) then
+exit
+endif
+enddo
+print i
+
+do i=1,5
+if (i==5) then
+exit
+endif
+enddo
+print i
+
+do i=1,5
+if (i==7) then
+exit
+endif
+enddo
+print i
+
+do i=2,0
+print i,i
+enddo
+print i

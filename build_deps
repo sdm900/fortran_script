@@ -1,0 +1,19 @@
+#!/bin/bash
+
+SRCDIR=src
+REINC='#include[ ]+"[a-zA-Z_.]+"'
+REUSE='[ \t]*[^!][ \t]*use[ ]+[a-zA-Z_]+'
+
+for prog in `cat ${SRCDIR}/LIST` src/check.f90 src/shell.f90
+do
+    bname=`basename $prog .f90`
+    awk "/$REINC/ { \
+		  gsub(/\"/, \"\", \$2)
+		  printf \"$SRCDIR/%s\n\",\$2
+		  } \
+	 /$REUSE/ { \
+		  printf \"$SRCDIR/%s.f90\n\",\$2
+		  } \
+	" $prog > ${SRCDIR}/.$bname.dep
+done
+

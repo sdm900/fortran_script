@@ -1,0 +1,6 @@
+x=1
+y=2
+do i=merge(x>y,1,2),5
+print i
+enddo
+

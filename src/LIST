@@ -1,0 +1,14 @@
+src/params.f90
+src/globals.f90
+src/error.f90
+src/programnodes.f90
+src/string.f90
+src/variables.f90
+src/extrafunc.f90
+src/interpreter.f90
+src/progstack.f90
+src/callstack.f90
+src/evalexec.f90
+src/parse.f90
+src/fscript.f90
+src/checkscrpt.f90

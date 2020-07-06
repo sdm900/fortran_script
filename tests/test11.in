@@ -1,0 +1,9 @@
+do i=1,10
+print i," before cycle"
+if(i>5) then
+exit
+endif
+print i," after cycle"
+enddo
+print i," after do loop"
+

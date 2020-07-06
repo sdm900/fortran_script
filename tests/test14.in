@@ -1,0 +1,7 @@
+x=1
+do i=1,100
+do j=1,100
+x=x+sqrt(i*j)/x
+end do
+end do
+print x

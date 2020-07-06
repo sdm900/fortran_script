@@ -1,0 +1,13 @@
+do j=1,2
+  do i=1,3
+    a(i,j)=0
+
+    do k=1,5
+      a(i,j)=a(i,j)+i*j*sin(i*j)
+    enddo
+  enddo
+enddo
+
+b(1,2)=3
+b(5,7)=4
+

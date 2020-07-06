@@ -1,0 +1,33 @@
+Need to figure out what to do with evalsubroutine and execsubroutine...
+
+
+
+Need to implement cyclic queues rather than stacks.  Need to finish with end_
+	update) ok, I think a sort of stack is ok.  Need to go through the code to make sure I don't put things onto the stack until the last minute.
+
+
+
+
+change everything from parse/eval/exec to something like crack/parse/exec which I think is a little more representative.
+
+
+
+
+go through all the code and clean up the names of functions/subroutines to make a little more sense...
+
+
+
+
+there is a bug with the reuse of buffers between script execution.  Compiling with -O seems to bring the bug out.
+
+Implement subroutines - every time you issue a call function, it needs to create a new name space for execution of the function/subroutine...  
+
+
+
+
+
+Every time you get a variable or array value, you have to do a double de-reference... something like
+
+	varvals(ns%vars(i))
+
+which will be bloody slow.  It will be faster to split the variables within a ns into those passed in and those defined within.  Then, you can align those variables defined within to the actual stack variable name.  This means that the array variable number is actually the same as the stack variable number and is fast to retrieve.  There may be other alignments you can do to make this faster again.

@@ -1,0 +1,4 @@
+x=1
+if (x==2) print "opps"
+if (x==1) print 'x= ',x
+

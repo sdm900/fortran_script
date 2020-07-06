@@ -1,0 +1,9 @@
+x=1
+if (x==2) then
+a(1)=1
+else
+b(1)=1
+endif
+print b(1)
+print a(1)
+
