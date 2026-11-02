@@ -143,6 +143,26 @@ program check
   call checkscript("test27")
 
   !
+  ! Test 30
+  !
+  call checkscript("test30", "1 gamma(x), x is 0 or negative integer")
+
+  !
+  ! Test 31
+  !
+  call checkscript("test31", "1 besy0(x), x/>0")
+
+  !
+  ! Test 32
+  !
+  call checkscript("test32", "1 x**y, |y| too large")
+
+  !
+  ! Test 33
+  !
+  call checkscript("test33", "1 Not a number: 1e")
+
+  !
   ! Test 28
   !
   call checkscript("test28")

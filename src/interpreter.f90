@@ -22,6 +22,8 @@ module interpreter
 
   type(cachefn), dimension(:), pointer, save :: cachedfuncs
   integer, save :: cfnp
+  integer, save :: parsedepth = 0
+  integer, parameter :: maxparsedepth = 1000
 
 contains
 
@@ -203,7 +205,7 @@ contains
     character(lenfunc), intent(inout) :: func
     integer, intent(out) :: command
     real(fdp), intent(out) :: number
-    integer :: pos
+    integer :: pos, ios
     logical :: dflag, exponent, finish
 
     exponent = .false.
@@ -249,19 +251,33 @@ contains
     end do
 
     if (pos == lenfunc .and. .not. finish) then
-       read(func, *) number
+       read(func, *, iostat=ios) number
 
-       command = number_
+       if (ios /= 0) then
+          call seterror('Not a number: '//func)
 
-       func = ''
-       lenfunc = 0
+          func = ''
+          lenfunc = 0
+       else
+          command = number_
+
+          func = ''
+          lenfunc = 0
+       end if
     else
-       read(func(:pos-1), *) number
+       read(func(:pos-1), *, iostat=ios) number
 
-       command = number_
+       if (ios /= 0) then
+          call seterror('Not a number: '//func)
 
-       func = func(pos:)
-       lenfunc = lenfunc - pos + 1
+          func = ''
+          lenfunc = 0
+       else
+          command = number_
+
+          func = func(pos:)
+          lenfunc = lenfunc - pos + 1
+       end if
     end if
 
   end subroutine s_readnumber
@@ -446,6 +462,18 @@ contains
     integer :: lentmpfunc, nextcommand, nextorder
     real(fdp) :: nextnumber
 
+    parsedepth = parsedepth + 1
+
+    if (parsedepth > maxparsedepth) then
+       call seterror('Maximum nesting depth exceeded')
+
+       func = ''
+       lenfunc = 0
+
+       parsedepth = parsedepth - 1
+       return
+    end if
+
     select case(command)
 
     case(number_, variablestart:variableend)
@@ -486,6 +514,8 @@ contains
        lenfunc = 0
 
     end select
+
+    parsedepth = parsedepth - 1
   end subroutine s_parseatom
 
 
@@ -654,10 +684,12 @@ contains
           if (tmp(1) > 0.0d0) then
              result = tmp(1) ** result
           elseif (tmp(1) < 0.0d0) then
-             if (aint(result) == result) then
-                result = tmp(1) ** nint(result)
-             else
+             if (aint(result) /= result) then
                 call seterror('x**y, x<0 and y not integer')
+             else if (abs(result) > real(huge(1), fdp)) then
+                call seterror('x**y, |y| too large')
+             else
+                result = tmp(1) ** nint(result)
              end if
           elseif (result /= 0.0d0) then
              result = 0.0d0
@@ -806,24 +838,38 @@ contains
 
        case(besjn_)
           POP(stack,stackn,tmp(1))
-          if (aint(tmp(1)) == tmp(1)) then
-             result = f_besjn(tmp(1), result)
-          else
+          if (aint(tmp(1)) /= tmp(1)) then
              call seterror('besjn(n, x), n not integer')
+          else if (abs(tmp(1)) > 1000000.0d0) then
+             call seterror('besjn(n, x), |n| too large')
+          else
+             result = f_besjn(tmp(1), result)
           end if
 
        case(besy0_)
-          result = f_besy0(result)
+          if (result > 0.0d0) then
+             result = f_besy0(result)
+          else
+             call seterror('besy0(x), x/>0')
+          end if
 
        case(besy1_)
-          result = f_besy1(result)
+          if (result > 0.0d0) then
+             result = f_besy1(result)
+          else
+             call seterror('besy1(x), x/>0')
+          end if
 
        case(besyn_)
           POP(stack,stackn,tmp(1))
-          if (aint(tmp(1)) == tmp(1) .and. result > 0.0d0) then
-             result = f_besyn(tmp(1), result)
+          if (aint(tmp(1)) /= tmp(1)) then
+             call seterror('besyn(n, x), n not integer')
+          else if (result <= 0.0d0) then
+             call seterror('besyn(n, x), x/>0')
+          else if (abs(tmp(1)) > 1000000.0d0) then
+             call seterror('besyn(n, x), |n| too large')
           else
-             call seterror('besyn(n, x), n not integer or x/>0')
+             result = f_besyn(tmp(1), result)
           end if
           
        case(logn_)
@@ -849,7 +895,13 @@ contains
           end if
 
        case(gamma_)
-          result = f_gamma(result)
+          if (result <= 0.0d0 .and. aint(result) == result) then
+             call seterror('gamma(x), x is 0 or negative integer')
+          else if (abs(result) > 200.0d0) then
+             call seterror('gamma(x), |x| too large')
+          else
+             result = f_gamma(result)
+          end if
 
        case(csch_)
           result = sinh(result)
@@ -892,24 +944,38 @@ contains
           
        case(besin_)
           POP(stack,stackn,tmp(1))
-          if (aint(tmp(1)) == tmp(1)) then
-             result = f_besin(tmp(1), result)
-          else
+          if (aint(tmp(1)) /= tmp(1)) then
              call seterror('besin(n, x), n not integer')
+          else if (abs(tmp(1)) > 1000000.0d0) then
+             call seterror('besin(n, x), |n| too large')
+          else
+             result = f_besin(tmp(1), result)
           end if
 
        case(besk0_)
-          result = f_besk0(result)
-          
+          if (result > 0.0d0) then
+             result = f_besk0(result)
+          else
+             call seterror('besk0(x), x/>0')
+          end if
+
        case(besk1_)
-          result = f_besk1(result)
-          
+          if (result > 0.0d0) then
+             result = f_besk1(result)
+          else
+             call seterror('besk1(x), x/>0')
+          end if
+
        case(beskn_)
           POP(stack,stackn,tmp(1))
-          if (aint(tmp(1)) == tmp(1)) then
-             result = f_beskn(tmp(1), result)
+          if (aint(tmp(1)) /= tmp(1)) then
+             call seterror('beskn(n, x), n not integer')
+          else if (result <= 0.0d0) then
+             call seterror('beskn(n, x), x/>0')
+          else if (abs(tmp(1)) > 1000000.0d0) then
+             call seterror('beskn(n, x), |n| too large')
           else
-             call seterror('besjk(n, x), n not integer')
+             result = f_beskn(tmp(1), result)
           end if
 
        case(ierfc_)
@@ -1022,6 +1088,7 @@ contains
        lentmpfunc = len_trim(tmpfunc)
        funcstackn = 0
        components = 0
+       parsedepth = 0
 
        call s_parsefn(tmpfunc(:lentmpfunc), lentmpfunc, funcstack, funcstackn, components)
     end if
