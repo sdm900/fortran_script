@@ -346,8 +346,9 @@ module params
        return_=__I(1), &
        functiondef_=__I, &
        commandend=__I(11), &
-! endfunction_ is hardcoded (not __I) so the 9-value __I gap above keeps
-! inlineif_ and friends at their historic absolute values (53190+).
+! endfunction_ is a hardcoded literal (not auto-numbered) so the
+! 11-value gap in commandend above keeps inlineif_ and friends at
+! their historic absolute values (53190+).
        endfunction_ = 53180, &
        inlineif_=__I(1), &
        endsubroutine_=__I(1), &

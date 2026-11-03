@@ -11,7 +11,7 @@ Legacy Fortran scripting-language interpreter. No CI, no linter/formatter, no pa
 
 ## Generated source / deps
 
-- `src/params.f90` is generated: `m4 src/params_m4.f90 > src/params.f90`. Edit `params_m4.f90`, not `params.f90`. Note `m4` is not installed in this container.
+- `src/params.f90` is generated: `m4 src/params_m4.f90 > src/params.f90`. Edit `params_m4.f90`, not `params.f90`. (m4 is installed; the Makefile rule regenerates automatically.) Note m4 expands `__I`/`__II` even inside Fortran `!` comments, so keep those identifiers out of comment text.
 - `./build_deps` regenerates `src/.*.dep` make dependencies from `src/LIST` plus `check.f90`/`shell.f90`; run from repo root.
 
 ## Tests
