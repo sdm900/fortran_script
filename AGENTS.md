@@ -4,20 +4,10 @@ Legacy Fortran scripting-language interpreter. No CI, no linter/formatter, no pa
 
 ## Build (gfortran, verified)
 
-- The `Makefile` is g95-only and stale: `F90COMPILER = ~/bin/g95` (not installed) plus g95-only flags (`-fpointer=invalid -freal=nan -ftrace=full`). Do not run `make` as-is.
-- Verified working build with system gfortran (15.x): compile in `src/LIST` order with `-cpp -I./src -J./obj`:
-  ```
-  mkdir -p obj bin
-  for f in $(cat src/LIST); do b=$(basename $f .f90); gfortran -cpp -I./src -J./obj -c $f -o obj/$b.o; done
-  gfortran -cpp -I./src -J./obj -c src/check.f90 -o obj/check.o
-  gfortran -cpp -I./src -J./obj -c src/shell.f90 -o obj/shell.o
-  OBJS="obj/params.o obj/globals.o obj/error.o obj/programnodes.o obj/string.o obj/variables.o obj/extrafunc.o obj/interpreter.o obj/progstack.o obj/callstack.o obj/evalexec.o obj/parse.o obj/fscript.o"
-  gfortran $OBJS obj/checkscrpt.o obj/check.o -o bin/check
-  gfortran $OBJS obj/shell.o -o bin/shell
-  ```
-- `mkdir -p obj bin cpp` is required first; the `Makefile` never creates these dirs.
-- `check.o` and `shell.o` each define `main` — never link `obj/*.o` together; use the two link lines above (`bin/check` needs `checkscrpt.o`, `bin/shell` must exclude it).
-- `src/*.f90` use `#include "macros.h"`; the `Makefile` handles this via external `cpp -P -C -traditional-cpp` staged into `cpp/`. With gfortran, `-cpp -I./src` replaces that pipeline.
+- `make` builds both binaries with system gfortran (15.x): plain `make` (or `make check` / `make shell`), `make test` runs the suite, `make clean` removes objects, binaries and generated deps. `F90COMPILER`/`F90FLAGS` can be overridden, e.g. `make F90FLAGS="-O0 -g -fcheck=all -Wall"`.
+- `mkdir -p obj bin` is handled by the `Makefile` via order-only prerequisites.
+- `obj/check.o` and `obj/shell.o` each define `main` — never link `obj/*.o` together; use the two link lines (`bin/check` needs `checkscrpt.o`, `bin/shell` links `shell.o` instead of `check.o`).
+- `src/*.f90` use `#include "macros.h"`; gfortran handles this directly with `-cpp -I./src` (no external `cpp -P -C -traditional-cpp` staging step).
 
 ## Generated source / deps
 

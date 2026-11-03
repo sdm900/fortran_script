@@ -1,7 +1,6 @@
 # Build outputs (see Makefile)
 obj/
 bin/
-cpp/
 src/.*.dep
 
 # Fortran compiler artifacts
