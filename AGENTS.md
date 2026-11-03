@@ -19,8 +19,8 @@ Legacy Fortran scripting-language interpreter. No CI, no linter/formatter, no pa
 - Runner is `bin/check` (sources `src/check.f90` + `src/checkscrpt.f90`); `bin/shell` (`src/shell.f90`) is the interactive interpreter, not a test.
 - Must run from repo root: `checkscrpt.f90` hardcodes `tests/<name>.in` / `.out` / `.exp` relative paths.
 - `bin/check` overwrites `tests/*.out` on every run, then diffs against `tests/*.exp`. Restore unrelated churn after running (`git checkout -- tests/`), keeping only intended `.exp`/test changes.
-- Not every test has an `.exp` file. Inline expectations live in `src/check.f90`: error-string checks (test1-2nd call, test6, test17, test30-35, test38-44), scalar/array API checks (test23/24 use `get_scalar`/`get_array`), count checks (test25/26, no `.in` files). Tests without `.exp` (17, 23, 24, 30, 31, 32, 33, 34, 35, 38, 39, 40, 42, 43, 44) are expected.
-- Subroutines/functions are implemented (tests 28/29/36/37/41 are output tests; 34/35/38/39/40/42/43/44 assert error paths). The suite runs to completion (44 checks); a hang means a new regression, not a known issue.
+- Not every test has an `.exp` file. Inline expectations live in `src/check.f90`: error-string checks (test1-2nd call, test6, test17, test30-35, test38-40, test42-44, test47-54, test57, test59, test60), scalar/array API checks (test23/24 use `get_scalar`/`get_array`), count checks (test25/26, no `.in` files). Tests without `.exp` (17, 23, 24, 30–35, 38–40, 42–44, 47–54, 57, 59, 60) are expected.
+- Subroutines/functions are implemented (tests 28/29/36/37/41/45/46/55/56/58/61 are output tests; 34/35/38/39/40/42/43/44/47–54/57/59/60 assert error paths). The suite runs to completion (61 checks); a hang means a new regression, not a known issue.
 - Run wrapped: `timeout -s KILL 60 ./bin/check || true` (bare `timeout` + `set -e` aborts the shell on 124).
 
 ## Architecture

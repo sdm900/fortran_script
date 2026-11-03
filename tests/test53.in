@@ -1,0 +1,4 @@
+function add(a, b)
+  add = a + b
+end function
+print add(1)

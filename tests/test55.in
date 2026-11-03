@@ -1,0 +1,4 @@
+subroutine init()
+  print 42
+end subroutine init
+call init()

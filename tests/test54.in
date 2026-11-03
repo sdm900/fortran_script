@@ -1,0 +1,7 @@
+subroutine ma()
+  call mb()
+end subroutine ma
+subroutine mb()
+  call ma()
+end subroutine mb
+call ma()

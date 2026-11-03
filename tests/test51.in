@@ -1,0 +1,6 @@
+subroutine dup(a)
+  print a
+end subroutine dup
+subroutine dup(a)
+  print a
+end subroutine dup

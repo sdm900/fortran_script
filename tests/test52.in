@@ -1,0 +1,3 @@
+subroutine s(a, a)
+  print a
+end subroutine s

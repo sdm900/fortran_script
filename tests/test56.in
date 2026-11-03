@@ -1,0 +1,4 @@
+subroutine empty(a)
+end subroutine empty
+call empty(1)
+print 42

@@ -227,4 +227,89 @@ program check
   !
   call checkscript("test44", "1 Unexpected text after subroutine declaration")
 
+  !
+  ! Test 45
+  !
+  call checkscript("test45")
+
+  !
+  ! Test 46
+  !
+  call checkscript("test46")
+
+  !
+  ! Test 47
+  !
+  call checkscript("test47", "1 DO increment is zero")
+
+  !
+  ! Test 48
+  !
+  call checkscript("test48", "1 EXIT not within a DO loop")
+
+  !
+  ! Test 49
+  !
+  call checkscript("test49", "1 CYCLE not within a DO loop")
+
+  !
+  ! Test 50
+  !
+  call checkscript("test50", "1 RETURN outside a subroutine or function")
+
+  !
+  ! Test 51
+  !
+  call checkscript("test51", "4 Subroutine already defined: dup")
+
+  !
+  ! Test 52
+  !
+  call checkscript("test52", "1 Duplicate dummy argument name: a")
+
+  !
+  ! Test 53
+  !
+  call checkscript("test53", "4 Wrong number of arguments for function: add")
+
+  !
+  ! Test 54
+  !
+  call checkscript("test54", "5 Recursive call is not supported: ma")
+
+  !
+  ! Test 55
+  !
+  call checkscript("test55")
+
+  !
+  ! Test 56
+  !
+  call checkscript("test56")
+
+  !
+  ! Test 57
+  !
+  call checkscript("test57", "4 Malformed index")
+
+  !
+  ! Test 58
+  !
+  call checkscript("test58")
+
+  !
+  ! Test 59
+  !
+  call checkscript("test59", "2 Array out of bounds for index    1")
+
+  !
+  ! Test 60
+  !
+  call checkscript("test60", "2 Incorrect number of array dimensions")
+
+  !
+  ! Test 61
+  !
+  call checkscript("test61")
+
 end program check
