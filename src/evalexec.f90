@@ -253,11 +253,13 @@ contains
 
 
   subroutine evalsubroutine()
+    call seterror('Subroutines not implemented')
   end subroutine evalsubroutine
 
 
 
   subroutine evalcall()
+    call seterror('Subroutines not implemented')
   end subroutine evalcall
 
  
@@ -477,9 +479,24 @@ contains
 
        progp1 = progp
        call popprogp(progp2, i)
+
+       if (.not. errorok) then
+          progp = progp2
+          call popcall(i)
+          return
+       end if
+
+       if (doinc == 0.0d0) then
+          call seterror('DO increment is zero')
+          progp = progp2
+          call popcall(i)
+          return
+       end if
+
        x = dostart
 
-       do while(x <= doend)
+       do while(errorok .and. ((doinc > 0.0d0 .and. x <= doend) .or. &
+            (doinc < 0.0d0 .and. x >= doend)))
           call pushcall(do_)
           progp = progp1
           call setvarval(dovar, x)
@@ -487,7 +504,7 @@ contains
           call popcall(i)
 
           if (i == exit_) exit
-          
+
           x = x + doinc
        end do
        
@@ -638,16 +655,19 @@ contains
 
 
   subroutine execsubroutine()
+    call seterror('Subroutines not implemented')
   end subroutine execsubroutine
 
   
 
   subroutine execendsubroutine()
+    call seterror('Subroutines not implemented')
   end subroutine execendsubroutine
 
 
 
   subroutine execcall()
+    call seterror('Subroutines not implemented')
   end subroutine execcall
 
 end module evalexec

@@ -165,8 +165,9 @@ contains
     elseif (n == arraydims(i)) then
        call getarraylb(i, lb, n)
        if (present(err)) err = 'OK'
-    elseif (present(err)) then
-       err = trim(tmp)//': number of array dimensions mismatch'
+    else
+       lb = 0
+       if (present(err)) err = trim(tmp)//': number of array dimensions mismatch'
     end if
   end subroutine get_array_lb
 
@@ -190,8 +191,9 @@ contains
     elseif (n == arraydims(i)) then
        call getarrayub(i, ub, n)
        if (present(err)) err = 'OK'
-    elseif (present(err)) then
-       err = trim(tmp)//': number of array dimensions mismatch'
+    else
+       ub = 0
+       if (present(err)) err = trim(tmp)//': number of array dimensions mismatch'
     end if
   end subroutine get_array_ub
 

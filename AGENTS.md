@@ -29,8 +29,9 @@ Legacy Fortran scripting-language interpreter. No CI, no linter/formatter, no pa
 - Runner is `bin/check` (sources `src/check.f90` + `src/checkscrpt.f90`); `bin/shell` (`src/shell.f90`) is the interactive interpreter, not a test.
 - Must run from repo root: `checkscrpt.f90` hardcodes `tests/<name>.in` / `.out` / `.exp` relative paths.
 - `bin/check` overwrites `tests/*.out` on every run, then diffs against `tests/*.exp`. Restore after running: `git checkout -- tests/`.
-- Not every test has an `.exp` file. Inline expectations live in `src/check.f90`: error-string checks (test1-2nd call, test6, test17, test30-33), scalar/array API checks (test23/24 use `get_scalar`/`get_array`), count checks (test25/26, no `.in` files). Tests without `.exp` (17, 23, 24, 28, 30, 31, 32, 33) are expected.
-- Known failure (verified, pre-existing): `bin/check` stalls during check 0032 = `tests/test28.in` (`subroutine a(b)` + `call a(1)` — subroutine call namespaces are unimplemented, see `TODO`). Run wrapped: `timeout -s KILL 30 ./bin/check || true` (bare `timeout` + `set -e` aborts the shell on 124; the suite never reaches test29). Treat a hang right after `0031 PASSED` as this known issue, not a new regression.
+- Not every test has an `.exp` file. Inline expectations live in `src/check.f90`: error-string checks (test1-2nd call, test6, test17, test28-33), scalar/array API checks (test23/24 use `get_scalar`/`get_array`), count checks (test25/26, no `.in` files). Tests without `.exp` (17, 23, 24, 28, 29, 30, 31, 32, 33) are expected.
+- Subroutines are unimplemented: `subroutine`/`call`/`endsubroutine` eval+exec stubs report `Subroutines not implemented` (tests 28/29 assert this). The suite runs to completion (33 checks); a hang means a new regression, not a known issue.
+- Run wrapped: `timeout -s KILL 60 ./bin/check || true` (bare `timeout` + `set -e` aborts the shell on 124).
 
 ## Architecture
 
@@ -38,6 +39,7 @@ Legacy Fortran scripting-language interpreter. No CI, no linter/formatter, no pa
 - Module compile order = `src/LIST` (params → globals → error → programnodes → string → variables → extrafunc → interpreter → progstack → callstack → evalexec → parse → fscript → checkscrpt).
 - `src/interpreter.f90` (~1070 lines) and `src/extrafunc.f90` (~2580 lines, intrinsic function table) are the bulk; start there, not leaf files.
 - The expression parser/evaluator in `src/interpreter.f90` (`s_readnumber`, `s_parse*`, `s_evaluate`, Bessel/`gamma` domain guards) shares lineage with `../fortran_parser/interpreter.f90`. Parser fixes already ported here: IOSTAT number parsing (`'Not a number'`), `parsedepth` cap (1000, `'Maximum nesting depth exceeded'`), `**` huge-exponent guard, `besjn/besy0/besy1/besyn/besin/besk0/besk1/beskn` domain guards, `gamma` pole/magnitude guards. Not portable (script lacks these features): `//`/`%`/`floor`/`ceiling`/`mod` guards, varvals arity tracking, `s_variableerr` MERGE fix, error-propagation stability check. Script-specific adaptations: sticky `seterror` (error module, line-number prefix) instead of `s_seterror`, `endfunc_` instead of `end_` sentinel.
+- Follow-up hardening (no parser equivalent): `parsedriver` block-depth cap (1000) plus `parseline` restoring `progp` past multi-line constructs so later lines never reuse stale unevaluated body nodes (this was the `test28` hang); `DO` rejects zero increment and respects negative steps; expression array subscripts use `nint` consistently with writes; array auto-growth is capped at `maxarrayelems` (params) with doubling realloc, `stat=` checks, and `mask=.false.` on fresh/moved cells; `cachedfuncs` slots are recycled via freelist across `interpret` calls (entries must live for the whole session since `DO`/`IF` re-evaluate stored functions); `createarr` initialises `mask`.
 
 ## Git
 

@@ -10,6 +10,9 @@ module parse
        & parseenddo, parsethen, parseelse, parseendif, parseend,&
        & parseexit, parsecycle
 
+  integer, save :: blockdepth = 0
+  integer, parameter :: maxblockdepth = 1000
+
 contains
   !
   ! Driver routine
@@ -21,6 +24,14 @@ contains
     integer :: i
 
     cont = .true.
+
+    blockdepth = blockdepth + 1
+
+    if (blockdepth > maxblockdepth) then
+       call seterror('Maximum block nesting depth exceeded')
+       blockdepth = blockdepth - 1
+       return
+    end if
 
     do while(cont .and. (.not. gotstop) .and. errorok)
        call getcall(i)
@@ -48,7 +59,11 @@ contains
        end if
     end do
 
-    1000 return
+    blockdepth = blockdepth - 1
+    return
+
+    1000 blockdepth = blockdepth - 1
+    return
   end subroutine parsedriver
 
 
@@ -59,7 +74,7 @@ contains
   recursive subroutine parseline(cont)
     logical, intent(inout) :: cont
     type(str) :: atom
-    integer :: command, obj, oldprogp
+    integer :: command, obj, oldprogp, newprogp
 
     oldprogp = progp
     call getatom(' (=', atom)
@@ -68,9 +83,11 @@ contains
     call parsecmd(atom, command, obj, cont)
 
     if (calldepth == 1) then
+       newprogp = progp
        progp = oldprogp
        call resetstkp()
        call evalline(cont)
+       if (progp < newprogp) progp = newprogp
     end if
   end subroutine parseline
 
@@ -567,7 +584,7 @@ contains
   subroutine parseexit()
     integer :: i
 
-    if (linep() < lenline()) call seterror('Extraneous characters after CYCLE')
+    if (linep() < lenline()) call seterror('Extraneous characters after EXIT')
 
     i = searchcall(do_)
 

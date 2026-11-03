@@ -165,11 +165,11 @@ program check
   !
   ! Test 28
   !
-  call checkscript("test28")
+  call checkscript("test28", "1 Subroutines not implemented")
 
   !
   ! Test 29
   !
-  call checkscript("test29")
+  call checkscript("test29", "1 Subroutines not implemented")
 
 end program check

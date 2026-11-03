@@ -11,8 +11,7 @@ module interpreter
        & s_checkcomponents, s_readnumber, s_readtext, s_readoperator,&
        & s_readbracket, s_readcomma, s_parseatom, s_getnextatom,&
        & s_peeknextatom, s_parseblock, s_parsefn, s_evaluate,&
-       & f_clean, f_lower,&
-       & f_numbervars
+       & f_clean, f_lower
   private :: cachefn, cachedfuncs, cfnp
 
   type cachefn
@@ -24,6 +23,8 @@ module interpreter
   integer, save :: cfnp
   integer, save :: parsedepth = 0
   integer, parameter :: maxparsedepth = 1000
+  integer, dimension(:), pointer, save :: freefuncs
+  integer, save :: nfreefuncs = 0
 
 contains
 
@@ -33,6 +34,7 @@ contains
 
     if (firstrun) then
        allocate(cachedfuncs(allocsize))
+       allocate(freefuncs(allocsize))
        cfnp = 0
 
        do i=1, size(cachedfuncs)
@@ -87,24 +89,6 @@ contains
        i = scan(res, upperchars)
     end do
   end function f_lower
-
-
-
-  function f_numbervars(vars) result(numvars)
-    character(len=*), intent(in) :: vars
-    integer :: numvars
-    character(len=len(vars)) :: tmpvars
-    character(len=namelength) :: tmpvar
-
-    tmpvars = TRIM(vars)
-    numvars = 0
-
-    do while (len_trim(tmpvars) > 0)
-       read(tmpvars, *) tmpvar
-       numvars = numvars + 1
-       tmpvars = tmpvars(index(tmpvars, trim(tmpvar))+len_trim(tmpvar):)
-    end do
-  end function f_numbervars
 
 
 
@@ -669,7 +653,7 @@ contains
        case(arraystart:arrayend)
           array = command-arraystart
           ndims = arraydims(array)
-          inds(ndims) = result
+          inds(ndims) = nint(result)
           
           do i = 1, ndims-1
              POP(stack,stackn,tmp(1))
@@ -1057,31 +1041,45 @@ contains
     integer, intent(out) :: funcnumber
     type(cachefn), pointer :: funcstack
     type(cachefn), dimension(:), pointer :: tmpcachedfuncs
-    integer :: funcstackn, i, lentmpfunc, components, n
+    integer :: funcstackn, i, lentmpfunc, components, n, slot
     character(func%e-func%i+1) :: tmpfunc
     
     funcnumber = 0
     call s_firstrun()
        
     if (errorok) then
-       n = size(cachedfuncs)
-       cfnp = cfnp + 1
+       if (nfreefuncs > 0) then
+          slot = freefuncs(nfreefuncs)
+          nfreefuncs = nfreefuncs - 1
+       else
+          n = size(cachedfuncs)
+          cfnp = cfnp + 1
 
-       if (cfnp > n) then
-          allocate(tmpcachedfuncs(cfnp+allocsize))
-          tmpcachedfuncs(:n) = cachedfuncs
-          deallocate(cachedfuncs)
-          cachedfuncs => tmpcachedfuncs
+          if (cfnp > n) then
+             allocate(tmpcachedfuncs(cfnp+allocsize))
+             tmpcachedfuncs(:n) = cachedfuncs
+             deallocate(cachedfuncs)
+             cachedfuncs => tmpcachedfuncs
 
-          do i = n+1, size(cachedfuncs)
-             allocate(cachedfuncs(i)%commands(allocsize), cachedfuncs(i)%numbers(allocsize))
-             cachedfuncs(i)%commands = endfunc_
-             cachedfuncs(i)%numbers = 0.0d0
-          end do
+             do i = n+1, size(cachedfuncs)
+                allocate(cachedfuncs(i)%commands(allocsize), cachedfuncs(i)%numbers(allocsize))
+                cachedfuncs(i)%commands = endfunc_
+                cachedfuncs(i)%numbers = 0.0d0
+             end do
+          end if
+
+          slot = cfnp
        end if
 
-       funcnumber = functionstart+cfnp
-       funcstack => cachedfuncs(cfnp)
+       funcnumber = functionstart+slot
+       funcstack => cachedfuncs(slot)
+
+       if (.not. associated(funcstack%numbers)) then
+          allocate(funcstack%numbers(allocsize), funcstack%commands(allocsize))
+       end if
+
+       funcstack%numbers = 0.0d0
+       funcstack%commands = endfunc_
        funcstackn = 0
        tmpfunc = linestr(func)
        tmpfunc = f_clean(tmpfunc)
@@ -1098,7 +1096,8 @@ contains
 
   subroutine destroyfn(funcnumber)
     integer, intent(in) :: funcnumber
-    integer :: tmp
+    integer :: tmp, n
+    integer, dimension(:), pointer :: tmpfree
 
     call s_firstrun()
     tmp = funcnumber - functionstart
@@ -1108,6 +1107,18 @@ contains
     else if (associated(cachedfuncs(tmp)%commands)) then
        deallocate(cachedfuncs(tmp)%numbers, cachedfuncs(tmp)%commands)
        nullify(cachedfuncs(tmp)%numbers, cachedfuncs(tmp)%commands)
+
+       n = size(freefuncs)
+
+       if (nfreefuncs >= n) then
+          allocate(tmpfree(n+allocsize))
+          tmpfree(:n) = freefuncs
+          deallocate(freefuncs)
+          freefuncs => tmpfree
+       end if
+
+       nfreefuncs = nfreefuncs + 1
+       freefuncs(nfreefuncs) = tmp
     else
        call seterror('Function does not exist')
     end if

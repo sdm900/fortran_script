@@ -615,12 +615,22 @@ contains
   subroutine modifycmd(cmd)
     integer, intent(in) :: cmd
     integer :: i
+    logical :: found
+
+    found = .false.
 
     do i=1, size(nodes(progp)%stk)
-       if (nodes(progp)%stk(i) == command_) exit
+       if (nodes(progp)%stk(i) == command_) then
+          found = .true.
+          exit
+       end if
     end do
 
-    nodes(progp)%ints(i) = cmd
+    if (found) then
+       nodes(progp)%ints(i) = cmd
+    else
+       call seterror('Cannot modify command')
+    end if
   end subroutine modifycmd
 
 

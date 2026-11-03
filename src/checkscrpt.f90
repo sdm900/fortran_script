@@ -4,7 +4,7 @@ module checkscrpt
   use fscript
   implicit none
 
-  integer, save :: count
+  integer, save :: count = 0
   integer, parameter :: fdp=8
 
 contains

@@ -13,7 +13,8 @@ module params
        atomlength=linelength, &
        varlistlength=4096, &
        udef_ = -1, &
-       allocsize = 10
+       allocsize = 10, &
+       maxarrayelems = 10000000
 
   real(fdp), parameter :: pi=3.141592653589793238d0, pi2 = pi/2.0d0, &
        pi4 = pi/4.0d0, eps = 1.0d-16, inf = huge(inf), &
@@ -340,8 +341,6 @@ module params
        stop_=__I(1), &
        help_=__I(1), &
        elseif_=__I(1), &
-       open_=__I(1), &
-       close_=__I(1), &
        call_=__I(1), &
        subroutine_=__I(1), &
        return_=__I, &
@@ -366,8 +365,6 @@ module params
        'stop       ', &
        'help       ', &
        'elseif     ', &
-       'open       ', &
-       'close      ', &
        'call       ', &
        'subroutine ', &
        'return     ' &

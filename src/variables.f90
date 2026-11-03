@@ -494,6 +494,7 @@ contains
          arrvals(narrs)%ub(ndims), arrvals(narrs)%strd(ndims))
 
     arrvals(narrs)%vals = 0.0d0
+    arrvals(narrs)%mask = .false.
     arrvals(narrs)%lb = 1
     arrvals(narrs)%ub = 1
     arrvals(narrs)%strd = 1
@@ -505,8 +506,9 @@ contains
     integer, intent(in) :: array, ndims
     integer, dimension(ndims), intent(in) :: inds
     real(fdp), intent(in) :: val
-    integer :: i, j, isize, nsize, a
+    integer :: i, j, isize, nsize, a, stat
     real(fdp) :: tmp
+    logical :: tmpm
     real(fdp), dimension(:), pointer :: v
     logical, dimension(:), pointer :: m
 
@@ -518,31 +520,43 @@ contains
        ub(:ndims) = max(inds, arrvals(a)%ub)
        nsize = product(ub(:ndims)-lb(:ndims)+1)
        strd(1) = 1
-       
+        
        do i=2, ndims
           strd(i) = strd(i-1)*(ub(i-1)-lb(i-1)+1)
        end do
-       
+
+       if (nsize > maxarrayelems) then
+          call seterror('Array exceeds maximum size')
+          return
+       end if
+        
        if (nsize > size(arrvals(a)%vals)) then
-          nsize = product(ub(:ndims)-lb(:ndims)+3)
-          allocate(v(nsize), m(nsize))
+          nsize = max(nsize, 2*size(arrvals(a)%vals))
+          allocate(v(nsize), m(nsize), stat=stat)
+
+          if (stat /= 0) then
+             call seterror('Array allocation failed')
+             return
+          end if
+
           v(:isize) = arrvals(a)%vals(:isize)
           m(:isize) = arrvals(a)%mask(:isize)
           v(isize+1:) = 0.0d0
-          m(isize+1:) = .true.
+          m(isize+1:) = .false.
           deallocate(arrvals(a)%vals, arrvals(a)%mask)
           arrvals(a)%vals => v
           arrvals(a)%mask => m
        end if
-       
+        
        do i = isize, 1, -1
           j = 1+sum(strd(:ndims)*(modulo((i-1)/arrvals(a)%strd, &
                arrvals(a)%ub-arrvals(a)%lb+1)-lb(:ndims)+1))
           tmp = arrvals(a)%vals(i)
+          tmpm = arrvals(a)%mask(i)
           arrvals(a)%vals(i) = 0.0d0
           arrvals(a)%mask(i) = .false.
           arrvals(a)%vals(j) = tmp
-          arrvals(a)%mask(j) = .true.
+          arrvals(a)%mask(j) = tmpm
        end do
        
        arrvals(a)%lb = lb(:ndims)
