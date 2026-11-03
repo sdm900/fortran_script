@@ -1,0 +1,12 @@
+subroutine inner(x)
+  if (x > 10) then
+    return
+  end if
+  print x
+end subroutine inner
+subroutine outer(y)
+  call inner(y)
+  call inner(y+100)
+end subroutine outer
+call outer(1)
+call outer(20)

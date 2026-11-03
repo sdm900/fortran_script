@@ -2,9 +2,9 @@
 
 A small Fortran-like scripting language, written in Fortran.
 It evaluates double-precision expressions, stores variables and arrays,
-and runs `do` loops and `if` branches. Think "programmable calculator",
-not a general-purpose language: there is no file I/O, no user functions,
-and no subroutines.
+runs `do` loops and `if` branches, and supports user-defined subroutines
+and functions. Think "programmable calculator", not a general-purpose
+language: there is no file I/O.
 
 ## Running scripts
 
@@ -120,8 +120,74 @@ enddo
 
 - `stop` ends the whole script (and the shell).
 - `help` prints the list of commands.
-- `enddo`/`endif` (or `end do` / `end if`) close the matching block.
-  (`elseif` and `return` are not implemented as standalone commands.)
+- `enddo`/`endif` (or `end do` / `end if`) close the matching block;
+  `end subroutine` / `end function` close routine definitions.
+  (`elseif` is not implemented as a standalone command.)
+- `return` exits the current subroutine or function early.
+  It is an error outside a routine.
+
+## Subroutines
+
+```
+subroutine swap(a, b)
+  c = a
+  a = b
+  b = c
+end subroutine swap
+
+x = 1
+y = 2
+call swap(x, y)     # x = 2, y = 1
+```
+
+- Invoke with `call name(arguments)` — parentheses are required,
+  even when empty (`call init()`).
+- Dummy arguments that match caller *variables* are passed
+  by reference: assigning to them inside the routine modifies the
+  caller's variable (as `swap` does above).
+- Anything else (literals, expressions) is evaluated first and passed
+  as a temporary, so assignments to it are lost. Array *elements* are
+  copied in and written back, so `call bump(a(2))` updates `a(2)`.
+  Whole arrays cannot be passed — pass elements instead.
+- Dummy names shadow caller variables of the same name. Other caller
+  variables and arrays are visible and shared — more precisely, the
+  routine sees the caller's *global* variables and arrays; names created
+  (or shadowed) inside an enclosing routine are *not* visible to routines
+  it calls. Names created inside the routine itself are local and
+  disappear on return.
+- `return` exits the routine early. `exit`/`cycle` may not cross
+  a routine boundary.
+- Recursion (direct or mutual) is rejected with an error.
+- Names follow the variable rules (letters and underscores, no digits,
+  32 characters max). Redefining a routine, or giving two dummies the
+  same name, is an error.
+
+## User-defined functions
+
+```
+function sq(x)
+  sq = x*x
+end function
+
+print sq(3)          # 9
+print sq(2) + sq(4)  # 20
+```
+
+- A function returns its value by assigning to its own name inside
+  the body. Leaving without assigning is an error
+  (`Function did not assign a return value`).
+- Functions are called inside expressions, with any nesting:
+  `sq(sq(2))`, `sq(x) + 1`, even `f(g(x))`.
+- Unlike subroutines, functions cannot modify their caller's variables:
+  arguments are always passed by value (a local copy).
+- A no-argument function may be called with or without parentheses:
+  `ten` or `ten()`.
+- A function name must not collide with an intrinsic (`sin`, `max`, …;
+  the check is case-insensitive), with an existing variable or array, or
+  with one of its own dummy arguments — all are definition-time errors.
+  `call` on a function is an error, and a subroutine name used inside
+  an expression is rejected (`Unknown text`). Recursion is rejected,
+  as for subroutines.
 
 ## Arrays
 
@@ -147,7 +213,7 @@ print a(0,-1)
   bounds is an error too.
 - Dimension mismatches (e.g. using a 1-D array with two subscripts) are errors.
 
-## Functions
+## Intrinsic functions
 
 One argument unless noted. All angles are in radians.
 
@@ -180,10 +246,9 @@ positive arguments, `sqrt` needs a non-negative one, `acos`/`asin` need
 
 - Lines are cut at 1024 characters; names at 32 characters.
 - Expression nesting is capped (1000 deep) and block nesting too.
-- **Not implemented:** `subroutine` / `call` / `return` (using them
-  reports `Subroutines not implemented`), `open` / `close` (no file I/O),
-  standalone `elseif`.
-- No user-defined functions; no function references or handles.
+- Call depth is capped (1000 deep); recursion is not supported.
+- Whole arrays cannot be passed to subroutines — pass elements instead.
+- **Not implemented:** `open` / `close` (no file I/O), standalone `elseif`.
 - No integer type: every value is double precision, comparisons included.
 - Output formatting is fixed (`f12.5` per number); there is no formatted I/O.
 

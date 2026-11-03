@@ -165,11 +165,66 @@ program check
   !
   ! Test 28
   !
-  call checkscript("test28", "1 Subroutines not implemented")
+  call checkscript("test28")
 
   !
   ! Test 29
   !
-  call checkscript("test29", "1 Subroutines not implemented")
+  call checkscript("test29")
+
+  !
+  ! Test 34
+  !
+  call checkscript("test34", "1 Unknown subroutine: nosuch")
+
+  !
+  ! Test 35
+  !
+  call checkscript("test35", "4 Wrong number of arguments in call to: two")
+
+  !
+  ! Test 36
+  !
+  call checkscript("test36")
+
+  !
+  ! Test 37
+  !
+  call checkscript("test37")
+
+  !
+  ! Test 38
+  !
+  call checkscript("test38", "4 Cannot CALL a function: ff")
+
+  !
+  ! Test 39
+  !
+  call checkscript("test39", "2 Function did not assign a return value: gg")
+
+  !
+  ! Test 40
+  !
+  call checkscript("test40", "2 Recursive call is not supported: rec")
+
+  !
+  ! Test 41
+  !
+  call checkscript("test41")
+
+  !
+  ! Test 42
+  !
+  call checkscript("test42", "2 Name already used by a variable or array: ab")
+
+  !
+  ! Test 43
+  !
+  call checkscript("test43", "1 Dummy argument has same name as function: sq")
+
+  !
+  ! Test 44
+  !
+  call checkscript("test44", "1 Unexpected text after subroutine declaration")
 
 end program check

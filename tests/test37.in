@@ -1,0 +1,11 @@
+g=100
+function sq(x)
+  sq = x*x
+end function
+function ten()
+  ten = 10
+end function
+print sq(3)
+print sq(ten())
+print sq(2)+sq(4)
+print sq(g)

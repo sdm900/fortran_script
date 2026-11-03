@@ -8,7 +8,9 @@ module parse
   private :: parseline, parsecmd, equalfunc, parsevar,&
        & parseinds, parsearr, parsehelp, parseprint, parsedo, parseif,&
        & parseenddo, parsethen, parseelse, parseendif, parseend,&
-       & parseexit, parsecycle
+       & parseexit, parsecycle, parsecall, parsesubroutine,&
+       & parsefunction, parsedummies, parseendfunction, parsereturn,&
+       & checkroutinename, checkdummies
 
   integer, save :: blockdepth = 0
   integer, parameter :: maxblockdepth = 1000
@@ -80,7 +82,7 @@ contains
     call getatom(' (=', atom)
     call getcommand(atom, command, obj)
     call pushcmd(command)
-    call parsecmd(atom, command, obj, cont)
+    call parsecmd(atom, command, cont)
 
     if (calldepth == 1) then
        newprogp = progp
@@ -93,9 +95,9 @@ contains
 
 
 
-  recursive subroutine parsecmd(atom, command, obj, cont)
+  recursive subroutine parsecmd(atom, command, cont)
     type(str), intent(in) :: atom
-    integer, intent(in) :: command, obj
+    integer, intent(in) :: command
     logical, intent(inout) :: cont
     integer :: cstk
 
@@ -160,12 +162,23 @@ contains
 
    case(subroutine_)
       call parsesubroutine()
+
+   case(functiondef_)
+      if (cstk == inlineif_) then
+         call seterror('Invalid command in an inline IF statement')
+         return
+      end if
+
+      call parsefunction()
+
+   case(return_)
+      call parsereturn()
        
     case(var_)
-       call parsevar(obj, atom)
+       call parsevar(atom)
 
     case(arr_)
-       call parsearr(obj, atom)
+       call parsearr(atom)
 
     case(stop_, nop_)
        
@@ -209,19 +222,14 @@ contains
 
 
 
-  subroutine parsevar(var, atom)
-    integer, intent(in) :: var
+  subroutine parsevar(atom)
     type(str), intent(in) :: atom
     type(str) :: s
-    
-    call pushint(var)
-    if (errorok) call equalfunc()
 
-    if (var == udef_) then
-       s = atom
-       call trimstr(s)
-       call pushstr(s)
-    end if
+    s = atom
+    call trimstr(s)
+    call pushvarstr(s)
+    if (errorok) call equalfunc()
   end subroutine parsevar
 
 
@@ -280,21 +288,16 @@ contains
 
 
 
-  subroutine parsearr(arr, atom)
-    integer, intent(in) :: arr
+  subroutine parsearr(atom)
     type(str), intent(in) :: atom
     type(str) :: s
     integer :: ninds
 
-    call pushint(arr)
+    s = atom
+    call trimstr(s)
+    call pushvarstr(s)
     if (errorok) ninds = parseinds()
     if (errorok) call equalfunc()
-
-    if (arr == udef_) then
-       s = atom
-       call trimstr(s)
-       call pushstr(s)
-    end if
   end subroutine parsearr
 
 
@@ -302,6 +305,155 @@ contains
   subroutine parsehelp()
     if (linep() < lenline()) call seterror('Extraneous characters after HELP')
   end subroutine parsehelp
+
+
+
+  subroutine parsereturn()
+    if (linep() < lenline()) call seterror('Extraneous characters after RETURN')
+  end subroutine parsereturn
+
+
+
+  function parsedummies(dnames) result(ndums)
+    character(namelength), dimension(*), intent(out) :: dnames
+    integer :: ndums
+    character :: c
+    type(str) :: s
+
+    call skipspace()
+    c = getchar()
+
+    if (c /= '(') then
+       call seterror('Malformed dummy argument list')
+       ndums = 0
+       return
+    end if
+
+    call getatom(',)', s)
+    c = getchar()
+
+    if (c /= ')' .and. c /= ',') then
+       call seterror('Malformed dummy argument list')
+       ndums = 0
+       return
+    end if
+
+    call trimstr(s)
+    ndums = 0
+
+    if (s%i > s%e) then
+       if (c /= ')') call seterror('Malformed dummy argument list')
+       return
+    end if
+
+    ndums = 1
+
+    if (.not. strname(s)) then
+       call seterror('Illegal dummy argument name: '//linestr(s))
+       return
+    end if
+
+    dnames(ndums) = linestr(s)
+
+    do while (c /= ')')
+       call getatom(',)', s)
+       c = getchar()
+
+       if (c /= ')' .and. c /= ',') then
+          call seterror('Malformed dummy argument list')
+          return
+       end if
+
+       call trimstr(s)
+       ndums = ndums + 1
+
+       if (ndums > maxinds) then
+          call seterror('Maximum number of dummy arguments exceeded')
+          return
+       end if
+
+       if (s%i > s%e) then
+          call seterror('Missing dummy argument name')
+          return
+       end if
+
+       if (.not. strname(s)) then
+          call seterror('Illegal dummy argument name: '//linestr(s))
+          return
+       end if
+
+       dnames(ndums) = linestr(s)
+    end do
+  end function parsedummies
+
+
+
+  subroutine checkroutinename(rname, kind)
+    character(*), intent(in) :: rname
+    integer, intent(in) :: kind
+    integer :: i, e, k
+    character(len(rname)) :: lname
+    character :: ch
+
+    if (findroutine(rname) /= 0) then
+       if (kind == subroutinekind) then
+          call seterror('Subroutine already defined: '//trim(rname))
+       else
+          call seterror('Function already defined: '//trim(rname))
+       end if
+
+       return
+    end if
+
+    if (kind /= functionkind) return
+
+    if (varstrnum(rname, len_trim(rname)) /= 0 .or. &
+         arrposbyname(trim(rname)) /= 0) then
+       call seterror('Name already used by a variable or array: '//trim(rname))
+       return
+    end if
+
+    lname = rname
+
+    do k = 1, len_trim(lname)
+       ch = lname(k:k)
+
+       if (ch >= 'A' .and. ch <= 'Z') lname(k:k) = achar(ichar(ch)+32)
+    end do
+
+    do i = expressionstart, expressionend
+       e = len_trim(expressions(i))
+
+       if (e > 1 .and. trim(lname) == expressions(i)(:e-1)) then
+          call seterror('Name already used by an intrinsic function: '//trim(rname))
+          return
+       end if
+    end do
+  end subroutine checkroutinename
+
+
+
+  subroutine checkdummies(dnames, nd)
+    character(namelength), dimension(*), intent(in) :: dnames
+    integer, intent(in) :: nd
+    integer :: i, j
+
+    do i = 1, nd
+       if (findroutine(dnames(i)) /= 0) then
+          call seterror('Dummy argument clashes with a routine name: '//trim(dnames(i)))
+          return
+       end if
+    end do
+
+    do i = 1, nd
+       do j = i+1, nd
+          if (trim(dnames(i)) == trim(dnames(j))) then
+             call seterror('Duplicate dummy argument name: '//trim(dnames(i)))
+             return
+          end if
+       end do
+    end do
+  end subroutine checkdummies
 
 
 
@@ -466,7 +618,7 @@ contains
        call getcommand(s, cmd, obj)
        call pushcmd(cmd)
        cont = .true.
-       call parsecmd(s, cmd, obj, cont)
+       call parsecmd(s, cmd, cont)
        call popcall(i)
 
        if (i /= inlineif_) call seterror('Incorrect syntax for an inline IF statement')
@@ -551,6 +703,16 @@ contains
     cont = .false.
     call pushcall(endsubroutine_)
   end subroutine parseendsubroutine
+
+
+  subroutine parseendfunction(cont)
+    logical, intent(out) :: cont
+    integer :: i
+
+    call popcall(i)
+    cont = .false.
+    call pushcall(endfunction_)
+  end subroutine parseendfunction
   
 
 
@@ -573,6 +735,10 @@ contains
     case(commands(subroutine_))
        call modifycmd(endsubroutine_)
        call parseendsubroutine(cont)
+
+    case(commands(functiondef_))
+       call modifycmd(endfunction_)
+       call parseendfunction(cont)
 
     case default
        call seterror('Mismatched END')
@@ -630,7 +796,7 @@ contains
     call skipspace()
 
     if (nextchar() /= '(' .and. linep() <= lenline()) then
-       call seterror('Malformed call declatation')
+       call seterror('Malformed call declaration')
        return
     end if
          
@@ -644,7 +810,8 @@ contains
   subroutine parsesubroutine()
     type(str) :: s
     integer :: i, progp1, progp2, ninds
-    character :: c
+    character(namelength) :: rname
+    character(namelength), dimension(maxinds) :: dnames
 
     call pushcall(subroutine_)
     call skipspace()
@@ -666,15 +833,43 @@ contains
     call skipspace()
 
     if (nextchar() /= '(' .and. linep() <= lenline()) then
-       call seterror('Malformed subroutine declatation')
+       call seterror('Malformed subroutine declaration')
        call popcall(i)
        return
     end if
-         
+
     call trimstr(s)
-    call pushstr(s)
+    rname = linestr(s)
+    call checkroutinename(rname, subroutinekind)
+
+    if (.not. errorok) then
+       call popcall(i)
+       return
+    end if
+
     progp1 = progp
-    ninds = parseinds()
+    ninds = parsedummies(dnames)
+
+    if (.not. errorok) then
+       call popcall(i)
+       return
+    end if
+
+    call checkdummies(dnames, ninds)
+
+    if (.not. errorok) then
+       call popcall(i)
+       return
+    end if
+
+    call skipspace()
+
+    if (linep() <= lenline()) then
+       call seterror('Unexpected text after subroutine declaration')
+       call popcall(i)
+       return
+    end if
+
     call parsedriver()
     call popcall(i)
 
@@ -683,8 +878,93 @@ contains
     progp2 = progp
     progp = progp1
     call pushprogp(progp2, i)
-    call registersub(s, ninds)
+    call registersub(s, ninds, subroutinekind, progp2, dnames, ninds)
     progp = progp2
   end subroutine parsesubroutine
+
+
+
+  subroutine parsefunction()
+    type(str) :: s
+    integer :: i, progp1, progp2, ninds, k
+    character(namelength) :: rname
+    character(namelength), dimension(maxinds) :: dnames
+
+    call pushcall(functiondef_)
+    call skipspace()
+
+    if (linep() > lenline()) then
+       call seterror('Malformed function declaration')
+       call popcall(i)
+       return
+    end if
+
+    call getatom('(', s)
+
+    if (s%e < s%i .or. .not. strname(s)) then
+       call seterror('Illegal function name: '//linestr(s))
+       call popcall(i)
+       return
+    end if
+
+    call skipspace()
+
+    if (nextchar() /= '(' .and. linep() <= lenline()) then
+       call seterror('Malformed function declaration')
+       call popcall(i)
+       return
+    end if
+
+    call trimstr(s)
+    rname = linestr(s)
+    call checkroutinename(rname, functionkind)
+
+    if (.not. errorok) then
+       call popcall(i)
+       return
+    end if
+
+    progp1 = progp
+    ninds = parsedummies(dnames)
+
+    if (.not. errorok) then
+       call popcall(i)
+       return
+    end if
+
+    call checkdummies(dnames, ninds)
+
+    if (.not. errorok) then
+       call popcall(i)
+       return
+    end if
+
+    do k = 1, ninds
+       if (trim(dnames(k)) == trim(rname)) then
+          call seterror('Dummy argument has same name as function: '//trim(rname))
+          call popcall(i)
+          return
+       end if
+    end do
+
+    call skipspace()
+
+    if (linep() <= lenline()) then
+       call seterror('Unexpected text after function declaration')
+       call popcall(i)
+       return
+    end if
+
+    call parsedriver()
+    call popcall(i)
+
+    if (i /= endfunction_) call seterror('Malformed function declaration')
+
+    progp2 = progp
+    progp = progp1
+    call pushprogp(progp2, i)
+    call registersub(s, ninds, functionkind, progp2, dnames, ninds)
+    progp = progp2
+  end subroutine parsefunction
 
 end module parse

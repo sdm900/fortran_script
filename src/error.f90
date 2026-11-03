@@ -23,7 +23,7 @@ contains
     character(*), intent(in) :: terror
 
     if (errorok .and. LEN_TRIM(terror) > 0) then
-       write(txtnum, '(i5)') progp
+       write(txtnum, '(i5)') progp - progp_bias
        perror = txtnum//' '//TRIM(terror)
 
        if (stdout /= -1) then

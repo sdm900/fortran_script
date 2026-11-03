@@ -1,0 +1,4 @@
+function rec(x)
+  rec = rec(x)+1
+end function
+print rec(1)

@@ -11,6 +11,10 @@ module evalexec
        & execprint, execvar, execarr, execdo, execif, execinlineif,&
        & execenddo, execthen, execelse, execendif, execexit, execcycle
 
+  integer, save :: subcalldepth = 0
+  integer, parameter :: maxsubcalldepth = 1000
+  integer, parameter :: argvar = 1, argarr = 2, argexpr = 3
+
 contains
   !
   !  Driver routine
@@ -21,7 +25,7 @@ contains
 
     cont = .true.
 
-    do while(cont .and. (.not. gotstop) .and. errorok)
+    do while(cont .and. (.not. gotstop) .and. errorok .and. .not. gotreturn)
        call getcall(i)
 
        if (i == cycle_ .or. i == exit_) then
@@ -91,10 +95,13 @@ contains
     case(subroutine_)
        call evalsubroutine()
 
+    case(functiondef_)
+       call evalfunction()
+
     case(call_)
        call evalcall()
 
-    case(enddo_, then_, else_, endif_, exit_, cycle_, stop_, help_, nop_, endsubroutine_)
+    case(enddo_, then_, else_, endif_, exit_, cycle_, stop_, help_, nop_, endsubroutine_, endfunction_, return_)
 
     case default
        call seterror('Illegal command: '//TRIM(commands(cmd)))
@@ -131,31 +138,28 @@ contains
 
   
   subroutine evalvar()
-    type(str) :: s
+    type(str) :: s, name
     integer :: var, func
 
-    call remint(var)
+    call remstr(name)
     call remstr(s)
     call createfn(s, func)
 
-    if (var == udef_) then
-       call remstr(s)
-       call createvar(s)
-       var = varnum(s)
-    end if
+    if (varnum(name) == 0) call createvar(name)
+    var = varnum(name)
 
-    call pushint(var)
+    call pushvar(var)
     call pushfn(func)
   end subroutine evalvar
 
 
 
   subroutine evalarr()
-    type(str) :: s
+    type(str) :: s, name
     integer :: arr, ndims, i, func
     integer, dimension(:), allocatable :: funcs
 
-    call remint(arr)
+    call remstr(name)
     call remint(ndims)
     allocate(funcs(ndims))
 
@@ -167,11 +171,8 @@ contains
     call remstr(s)
     call createfn(s, func)
 
-    if (arr == udef_) then
-       call remstr(s)
-       call createarr(s, ndims)
-       arr = arraynum(s)
-    end if
+    if (arraynum(name) == 0) call createarr(name, ndims)
+    arr = arraynum(name)
 
     call pushint(arr)
 
@@ -253,13 +254,158 @@ contains
 
 
   subroutine evalsubroutine()
-    call seterror('Subroutines not implemented')
   end subroutine evalsubroutine
 
 
 
+  subroutine evalfunction()
+  end subroutine evalfunction
+
+
+
   subroutine evalcall()
-    call seterror('Subroutines not implemented')
+    type(str) :: s, args(maxinds)
+    integer :: subidx, nargs, i, slot, arr, nd, j, func
+    integer, dimension(maxinds) :: lifns
+    character(namelength) :: name, head
+    character(linelength) :: text
+    integer :: l, lp, p, depth, k
+
+    call remstr(s)
+    call remint(nargs)
+
+    do i = 1, nargs
+       call remstr(args(i))
+    end do
+
+    if (nargs == 1) then
+       text = linestr(args(1))
+
+       if (len_trim(text) == 0) nargs = 0
+    end if
+
+    name = linestr(s)
+    subidx = findroutine(name)
+
+    if (subidx == 0) then
+       call seterror('Unknown subroutine: '//trim(name))
+       return
+    end if
+
+    if (routinekind(subidx) /= subroutinekind) then
+       call seterror('Cannot CALL a function: '//trim(name))
+       return
+    end if
+
+    if (nargs /= routinenargs(subidx)) then
+       call seterror('Wrong number of arguments in call to: '//trim(name))
+       return
+    end if
+
+    call pushint(subidx)
+
+    do i = 1, nargs
+       text = linestr(args(i))
+       text = adjustl(text)
+       l = len_trim(text)
+
+       if (l == 0) then
+          call seterror('Missing argument in call to: '//trim(name))
+          return
+       end if
+
+       if (index(text(:l), '(') == 0 .and. index(text(:l), ')') == 0) then
+          slot = 0
+          if (varstrnum(text, l) > 0) slot = varslot(varstrnum(text, l))
+
+          if (slot > 0) then
+             call pushint(argvar)
+             call pushint(slot)
+             cycle
+          end if
+
+          call createfnstr(text(:l), func)
+          call pushint(argexpr)
+          call pushfn(func)
+          cycle
+       end if
+
+       lp = index(text(:l), '(')
+
+       if (lp > 1) then
+          head = text(:lp-1)
+       else
+          head = ''
+       end if
+
+       arr = 0
+
+       if (lp > 1) arr = arrposbyname(trim(adjustl(head)))
+
+       if (arr > 0 .and. text(l:l) == ')') then
+          depth = 0
+          k = 0
+          p = lp
+
+          do while (p <= l)
+             if (text(p:p) == '(') depth = depth + 1
+             if (text(p:p) == ')') depth = depth - 1
+             if (depth == 0) exit
+             p = p + 1
+          end do
+
+          if (p == l) then
+             nd = 0
+             k = lp + 1
+             depth = 1
+
+             do j = lp + 1, l - 1
+                if (text(j:j) == '(') depth = depth + 1
+                if (text(j:j) == ')') depth = depth - 1
+
+                if (text(j:j) == ',' .and. depth == 1) then
+                   if (len_trim(text(k:j-1)) == 0) then
+                      call seterror('Missing array index in call to: '//trim(name))
+                      return
+                   end if
+
+                   call createfnstr(text(k:j-1), func)
+                   nd = nd + 1
+                   lifns(nd) = func
+                   k = j + 1
+                end if
+             end do
+
+             if (len_trim(text(k:l-1)) == 0) then
+                call seterror('Missing array index in call to: '//trim(name))
+                return
+             end if
+
+             call createfnstr(text(k:l-1), func)
+             nd = nd + 1
+             lifns(nd) = func
+
+             if (nd /= arraydims(arr)) then
+                call seterror('Incorrect number of array dimensions')
+                return
+             end if
+
+             call pushint(argarr)
+             call pushint(arr)
+             call pushint(nd)
+
+             do j = 1, nd
+                call pushfn(lifns(j))
+             end do
+
+             cycle
+          end if
+       end if
+
+       call createfnstr(text(:l), func)
+       call pushint(argexpr)
+       call pushfn(func)
+    end do
   end subroutine evalcall
 
  
@@ -333,8 +479,17 @@ contains
     case(endsubroutine_)
        call execendsubroutine()
 
+    case(functiondef_)
+       call execfunction()
+
+    case(endfunction_)
+       call execendfunction()
+
     case(call_)
        call execcall()
+
+    case(return_)
+       call execreturn()
 
     case(nop_)
 
@@ -419,7 +574,7 @@ contains
     real(fdp) :: x
 
     x = 0
-    call popint(var)
+    call popvar(var)
     call popfn(func)
     call evaluatefn(func, x)
     call setvarval(var, x)
@@ -495,7 +650,7 @@ contains
 
        x = dostart
 
-       do while(errorok .and. ((doinc > 0.0d0 .and. x <= doend) .or. &
+       do while(errorok .and. .not. gotreturn .and. ((doinc > 0.0d0 .and. x <= doend) .or. &
             (doinc < 0.0d0 .and. x >= doend)))
           call pushcall(do_)
           progp = progp1
@@ -655,19 +810,247 @@ contains
 
 
   subroutine execsubroutine()
-    call seterror('Subroutines not implemented')
   end subroutine execsubroutine
 
-  
+
 
   subroutine execendsubroutine()
-    call seterror('Subroutines not implemented')
   end subroutine execendsubroutine
 
 
 
-  subroutine execcall()
-    call seterror('Subroutines not implemented')
+  subroutine execfunction()
+  end subroutine execfunction
+
+
+
+  subroutine execendfunction()
+  end subroutine execendfunction
+
+
+
+  subroutine execreturn()
+    integer :: i
+
+    i = searchcall(subroutine_)
+
+    if (i == 0) i = searchcall(functiondef_)
+
+    if (i == 0) then
+       call seterror('RETURN outside a subroutine or function')
+    else
+       gotreturn = .true.
+    end if
+  end subroutine execreturn
+
+
+
+  recursive subroutine execcall()
+    integer :: subidx, nargs, i, j
+    integer, dimension(maxinds) :: kinds, slots, arrs, nds, vfns
+    integer, dimension(maxinds, maxinds) :: ifns, fidx
+    integer, dimension(maxinds) :: tmpinds
+    real(fdp), dimension(maxinds) :: argvals, tempvals
+    real(fdp) :: x, result
+
+    call popint(subidx)
+    nargs = routinenargs(subidx)
+
+    do i = 1, nargs
+       call popint(kinds(i))
+
+       if (kinds(i) == argvar) then
+          call popint(slots(i))
+       else if (kinds(i) == argarr) then
+          call popint(arrs(i))
+          call popint(nds(i))
+
+          do j = 1, nds(i)
+             call popfn(ifns(i, j))
+          end do
+       else
+          call popfn(vfns(i))
+          slots(i) = 0
+       end if
+    end do
+
+    do i = 1, nargs
+       if (kinds(i) == argarr) then
+          do j = 1, nds(i)
+             call evaluatefn(ifns(i, j), x)
+             fidx(i, j) = nint(x)
+             tmpinds(j) = fidx(i, j)
+          end do
+
+          argvals(i) = arrayval(arrs(i), tmpinds, nds(i))
+          slots(i) = 0
+       else if (kinds(i) == argexpr) then
+          call evaluatefn(vfns(i), argvals(i))
+          slots(i) = 0
+       else
+          argvals(i) = 0.0d0
+       end if
+    end do
+
+    if (.not. errorok) return
+
+    call driveroutine(subidx, slots, argvals, nargs, .false., result, tempvals)
+
+    if (.not. errorok .or. gotstop) return
+
+    do i = 1, nargs
+       if (kinds(i) == argarr) then
+          do j = 1, nds(i)
+             tmpinds(j) = fidx(i, j)
+          end do
+
+          call setarrayval(arrs(i), tmpinds, nds(i), tempvals(i))
+       end if
+    end do
   end subroutine execcall
+
+
+  recursive subroutine driveroutine(subidx, slots, vals, nargs, want_result, result, tempvals)
+    integer, intent(in) :: subidx, nargs
+    integer, dimension(*), intent(in) :: slots
+    real(fdp), dimension(*), intent(in) :: vals
+    logical, intent(in) :: want_result
+    real(fdp), intent(out) :: result
+    real(fdp), dimension(*), intent(out) :: tempvals
+    integer :: i, progp_save, progp1, bodyend, depth0, marker, fi, base, nbody, oldbias
+    logical :: cont
+    character(namelength) :: fname
+    character(namelength), dimension(maxinds) :: dnames
+
+    result = 0.0d0
+
+    if (nargs > 0) tempvals(1:nargs) = 0.0d0
+
+    subcalldepth = subcalldepth + 1
+
+    if (subcalldepth > maxsubcalldepth) then
+       call seterror('Maximum call depth exceeded')
+       subcalldepth = subcalldepth - 1
+       return
+    end if
+
+    if (.not. errorok) then
+       subcalldepth = subcalldepth - 1
+       return
+    end if
+
+    if (routineactive(subidx) /= 0) then
+       call seterror('Recursive call is not supported: '//trim(routinename(subidx)))
+       subcalldepth = subcalldepth - 1
+       return
+    end if
+
+    call setactive(subidx, 1)
+
+    progp_save = progp
+    depth0 = calldepth
+    oldbias = progp_bias
+
+    if (routinekind(subidx) == functionkind) then
+       marker = functiondef_
+    else
+       marker = subroutine_
+    end if
+
+    call pushcall(marker)
+
+    do i = 1, routinenargs(subidx)
+       dnames(i) = routinedummy(subidx, i)
+    end do
+
+    call childnamespace(dnames, slots, vals, nargs)
+
+    progp1 = routineprogp(subidx)
+    bodyend = routineend(subidx) - 1
+    nbody = bodyend - progp1
+
+    if (nbody > 0) then
+       base = allocnodes(nbody)
+
+       do i = 0, nbody - 1
+          call copynodes(progp1+1+i, base+i)
+       end do
+
+       progp_bias = base - 1 - progp1
+       progp = base - 1
+       bodyend = base + nbody - 1
+       cont = .true.
+
+       do while (cont .and. .not. gotstop .and. errorok .and. .not. gotreturn .and. progp < bodyend)
+          call getcall(i)
+
+          if (i == cycle_ .or. i == exit_) then
+             cont = .false.
+             exit
+          end if
+
+          progp = progp + 1
+          call resetstkp()
+          call evalline(cont)
+       end do
+    end if
+
+    call getcall(i)
+
+    if (i /= marker) then
+       if (errorok) call seterror('EXIT or CYCLE may not cross a subroutine or function boundary')
+    end if
+
+    call setcalldepth(depth0)
+
+    if (errorok .and. .not. gotstop) then
+       if (want_result) then
+          fname = routinename(subidx)
+          fi = varstrnum(fname, len_trim(fname))
+
+          if (fi == 0) then
+             call seterror('Function did not assign a return value: '//trim(fname))
+          else
+             result = varval(fi)
+          end if
+       end if
+
+       do i = 1, nargs
+          tempvals(i) = varval(i)
+       end do
+    end if
+
+    progp = progp_save
+
+    if (nbody > 0) then
+       do i = 0, nbody - 1
+          call destroynodefn(base+i)
+       end do
+
+       call truncnodes(base-1)
+    end if
+
+    progp_bias = oldbias
+    call dropchild()
+    gotreturn = .false.
+    call setactive(subidx, 0)
+    subcalldepth = subcalldepth - 1
+  end subroutine driveroutine
+
+
+  recursive subroutine drive_function(subidx, argvals, nargs, result)
+    integer, intent(in) :: subidx, nargs
+    real(fdp), dimension(*), intent(in) :: argvals
+    real(fdp), intent(out) :: result
+    integer, dimension(maxinds) :: slots
+    real(fdp), dimension(maxinds) :: tempvals
+    integer :: i
+
+    do i = 1, maxinds
+       slots(i) = 0
+    end do
+
+    call driveroutine(subidx, slots, argvals, nargs, .true., result, tempvals)
+  end subroutine drive_function
 
 end module evalexec

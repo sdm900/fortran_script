@@ -1,0 +1,4 @@
+function ff(x)
+  ff = x+1
+end function
+call ff(1)

@@ -1,0 +1,6 @@
+x = 0
+subroutine setx(a)
+  x = a
+end subroutine setx
+call setx(5)
+print x

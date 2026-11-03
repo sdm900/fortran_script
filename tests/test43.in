@@ -1,0 +1,4 @@
+function sq(sq)
+  sq = sq + 1
+end function
+print sq(5)

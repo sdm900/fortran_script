@@ -18,15 +18,20 @@ module variables
 
   type namespace_
      integer :: nvars, narrs, nvarinds, narrinds
+     integer :: ndums, npassed, npassedarr, save_nvars, save_narrs
      integer, dimension(:), pointer :: vars, arrs, lenvarnames, lenarrnames
      character(namelength), dimension(:), pointer :: varnames, arrnames
   end type namespace_
 
   type sub_
-     integer :: progp, ninds
+     integer :: progp, ninds, kind, endprogp, ndummies
+     integer :: active
      character(namelength) :: name
+     character(namelength), dimension(maxinds) :: dummies
      integer :: lenname
   end type sub_
+
+  integer, parameter :: subroutinekind = 1, functionkind = 2
 
   ! Name spaces
   integer :: nns
@@ -58,6 +63,11 @@ contains
     ns%narrs = 0
     ns%nvarinds = 0
     ns%narrinds = 0
+    ns%ndums = 0
+    ns%npassed = 0
+    ns%npassedarr = 0
+    ns%save_nvars = 0
+    ns%save_narrs = 0
     ns%vars = udef_
     ns%arrs = udef_
     ns%varnames = ''
@@ -126,11 +136,17 @@ contains
 
   
 
-  subroutine registersub(s, ninds)
+  subroutine registersub(s, ninds, kind, endprogp, dnames, ndnames)
     type(str), intent(in) :: s
-    integer, intent(in) :: ninds
+    integer, intent(in) :: ninds, kind, endprogp, ndnames
+    character(namelength), dimension(*), intent(in) :: dnames
+    integer :: tnsubs, i
     type(sub_), dimension(:), pointer :: tsubs
-    integer :: tnsubs
+
+    if (nsubs+1 > userfnend-userfnstart+1) then
+       call seterror('Too many subroutines and functions')
+       return
+    end if
 
     tnsubs = nsubs
     nsubs = nsubs + 1
@@ -144,8 +160,16 @@ contains
 
     subs(nsubs)%progp = progp
     subs(nsubs)%ninds = ninds
+    subs(nsubs)%kind = kind
+    subs(nsubs)%endprogp = endprogp
+    subs(nsubs)%ndummies = ndnames
+    subs(nsubs)%active = 0
     subs(nsubs)%name = linestr(s)
     subs(nsubs)%lenname = s%e-s%i+1
+
+    do i = 1, min(ndnames, maxinds)
+       subs(nsubs)%dummies(i) = dnames(i)
+    end do
   end subroutine registersub
 
 
@@ -169,6 +193,293 @@ contains
        end if
     end do
   end function subroutinenum
+
+
+
+  function findroutine(name) result(idx)
+    character(*), intent(in) :: name
+    integer :: idx, i
+
+    idx = 0
+
+    do i = 1, nsubs
+       if (trim(subs(i)%name) == trim(name)) then
+          idx = i
+          exit
+       end if
+    end do
+  end function findroutine
+
+
+  function finduserfn(func, lenfunc) result(idx)
+    character(*), intent(in) :: func
+    integer, intent(in) :: lenfunc
+    integer :: idx, i, l, leff
+
+    idx = 0
+    leff = min(len(func), lenfunc)
+
+    do i = 1, nsubs
+       if (subs(i)%kind /= functionkind) cycle
+
+       l = subs(i)%lenname
+
+       if (l > leff) cycle
+       if (func(:l) /= subs(i)%name(:l)) cycle
+       if (l < leff .and. verify(func(l+1:l+1), namechars) == 0) cycle
+
+       idx = i
+       exit
+    end do
+  end function finduserfn
+
+
+  function routinekind(idx) result(kind)
+    integer, intent(in) :: idx
+    integer :: kind
+
+    kind = subs(idx)%kind
+  end function routinekind
+
+
+  function routinenargs(idx) result(nargs)
+    integer, intent(in) :: idx
+    integer :: nargs
+
+    nargs = subs(idx)%ninds
+  end function routinenargs
+
+
+  function routinedummy(idx, k) result(name)
+    integer, intent(in) :: idx, k
+    character(namelength) :: name
+
+    name = subs(idx)%dummies(min(max(k, 1), maxinds))
+  end function routinedummy
+
+
+  function routineend(idx) result(progp2)
+    integer, intent(in) :: idx
+    integer :: progp2
+
+    progp2 = subs(idx)%endprogp
+  end function routineend
+
+
+  function routineprogp(idx) result(progp1)
+    integer, intent(in) :: idx
+    integer :: progp1
+
+    progp1 = subs(idx)%progp
+  end function routineprogp
+
+
+  function routinename(idx) result(name)
+    integer, intent(in) :: idx
+    character(namelength) :: name
+
+    name = subs(idx)%name
+  end function routinename
+
+
+  function routineactive(idx) result(active)
+    integer, intent(in) :: idx
+    integer :: active
+
+    active = subs(idx)%active
+  end function routineactive
+
+
+  subroutine setactive(idx, active)
+    integer, intent(in) :: idx, active
+
+    subs(idx)%active = active
+  end subroutine setactive
+
+
+  function varslot(var)
+    integer, intent(in) :: var
+    integer :: varslot
+
+    varslot = ns%vars(var)
+  end function varslot
+
+
+  function arrslot(array)
+    integer, intent(in) :: array
+    integer :: arrslot
+
+    arrslot = ns%arrs(array)
+  end function arrslot
+
+
+
+  !
+  ! Child-namespace routines (subroutine and function calls)
+  !
+  ! A child namespace holds the dummy arguments first, then copies of the
+  ! caller's inherited mappings, so name lookup finds dummies before
+  ! globals. Anything appended later (locals created by the body) is
+  ! dropped with the child. Global pools are truncated on teardown.
+  ! A top-level namespace (nns == 1 on entry) copies all its entries.
+  !
+
+
+
+  subroutine childnamespace(dnames, slots, vals, nd)
+    character(namelength), dimension(*), intent(in) :: dnames
+    integer, dimension(*), intent(in) :: slots
+    real(fdp), dimension(*), intent(in) :: vals
+    integer, intent(in) :: nd
+    type(namespace_), dimension(:), pointer :: tnss
+    integer :: tnns, i, ncopy, ncopyarr, start, nsize
+    real(fdp), dimension(:), pointer :: tvarvals
+    character(namelength), dimension(:), pointer :: tnames
+    integer, dimension(:), pointer :: tvals, tlen
+
+    tnns = nns
+    nns = nns + 1
+
+    if (nns > size(nss)) then
+       allocate(tnss(nns+allocsize))
+       tnss(:tnns) = nss
+       deallocate(nss)
+       nss => tnss
+    end if
+
+    ns => nss(nns)
+
+    ns%save_nvars = nvars
+    ns%save_narrs = narrs
+    ns%nvars = 0
+    ns%narrs = 0
+    ns%nvarinds = 0
+    ns%narrinds = 0
+    ns%ndums = 0
+    ns%npassed = 0
+    ns%npassedarr = 0
+    allocate(ns%vars(allocsize), ns%arrs(allocsize), ns%lenvarnames(allocsize), &
+         ns%lenarrnames(allocsize), ns%varnames(allocsize), ns%arrnames(allocsize))
+    ns%vars = udef_
+    ns%arrs = udef_
+    ns%lenvarnames = 0
+    ns%lenarrnames = 0
+    ns%varnames = ''
+    ns%arrnames = ''
+
+    do i = 1, nd
+       nsize = size(varvals)
+
+       if (nvars+1 > nsize) then
+          allocate(tvarvals(nsize+allocsize))
+          tvarvals(:nsize) = varvals
+          deallocate(varvals)
+          varvals => tvarvals
+       end if
+
+       if (ns%nvars+1 > size(ns%vars)) then
+          nsize = size(ns%vars)
+          allocate(tvals(nsize+allocsize), tnames(nsize+allocsize), &
+               tlen(nsize+allocsize))
+          tvals(:nsize) = ns%vars
+          tnames(:nsize) = ns%varnames
+          tlen(:nsize) = ns%lenvarnames
+          deallocate(ns%vars, ns%varnames, ns%lenvarnames)
+          ns%vars => tvals
+          ns%varnames => tnames
+          ns%lenvarnames => tlen
+       end if
+
+       ns%nvars = ns%nvars + 1
+       ns%ndums = ns%ndums + 1
+
+       if (slots(i) > 0) then
+          ns%vars(ns%nvars) = slots(i)
+       else
+          nvars = nvars + 1
+          varvals(nvars) = vals(i)
+          ns%vars(ns%nvars) = nvars
+       end if
+
+       ns%varnames(ns%nvars) = dnames(i)
+       ns%lenvarnames(ns%nvars) = len_trim(dnames(i))
+    end do
+
+    if (nss(tnns)%ndums == 0 .and. nss(tnns)%npassed == 0) then
+       ncopy = nss(tnns)%nvars
+       ncopyarr = nss(tnns)%narrs
+       start = 1
+    else
+       ncopy = nss(tnns)%npassed
+       ncopyarr = nss(tnns)%npassedarr
+       start = nss(tnns)%ndums + 1
+    end if
+
+    do i = 0, ncopy - 1
+       if (ns%nvars+1 > size(ns%vars)) then
+          nsize = size(ns%vars)
+          allocate(tvals(nsize+allocsize), tnames(nsize+allocsize), &
+               tlen(nsize+allocsize))
+          tvals(:nsize) = ns%vars
+          tnames(:nsize) = ns%varnames
+          tlen(:nsize) = ns%lenvarnames
+          deallocate(ns%vars, ns%varnames, ns%lenvarnames)
+          ns%vars => tvals
+          ns%varnames => tnames
+          ns%lenvarnames => tlen
+       end if
+
+       ns%nvars = ns%nvars + 1
+       ns%npassed = ns%npassed + 1
+       ns%vars(ns%nvars) = nss(tnns)%vars(start+i)
+       ns%varnames(ns%nvars) = nss(tnns)%varnames(start+i)
+       ns%lenvarnames(ns%nvars) = nss(tnns)%lenvarnames(start+i)
+    end do
+
+    do i = 1, ncopyarr
+       if (ns%narrs+1 > size(ns%arrs)) then
+          nsize = size(ns%arrs)
+          allocate(tvals(nsize+allocsize), tnames(nsize+allocsize), &
+               tlen(nsize+allocsize))
+          tvals(:nsize) = ns%arrs
+          tnames(:nsize) = ns%arrnames
+          tlen(:nsize) = ns%lenarrnames
+          deallocate(ns%arrs, ns%arrnames, ns%lenarrnames)
+          ns%arrs => tvals
+          ns%arrnames => tnames
+          ns%lenarrnames => tlen
+       end if
+
+       ns%narrs = ns%narrs + 1
+       ns%npassedarr = ns%npassedarr + 1
+       ns%arrs(ns%narrs) = nss(tnns)%arrs(i)
+       ns%arrnames(ns%narrs) = nss(tnns)%arrnames(i)
+       ns%lenarrnames(ns%narrs) = nss(tnns)%lenarrnames(i)
+    end do
+  end subroutine childnamespace
+
+
+  subroutine dropchild()
+    integer :: i
+
+    do i = ns%save_narrs+1, narrs
+       arrvals(i)%ndims = 0
+
+       if (associated(arrvals(i)%lb)) then
+          deallocate(arrvals(i)%lb, arrvals(i)%ub, arrvals(i)%strd, &
+               arrvals(i)%vals, arrvals(i)%mask)
+          nullify(arrvals(i)%lb, arrvals(i)%ub, arrvals(i)%strd, &
+               arrvals(i)%vals, arrvals(i)%mask)
+       end if
+    end do
+
+    nvars = ns%save_nvars
+    narrs = ns%save_narrs
+    deallocate(ns%vars, ns%arrs, ns%lenvarnames, ns%lenarrnames, &
+         ns%varnames, ns%arrnames)
+    nns = nns - 1
+    ns => nss(nns)
+  end subroutine dropchild
 
 
 
@@ -396,6 +707,21 @@ contains
        end if
     end do
   end function arrstrnum
+
+
+  function arrposbyname(name) result(pos)
+    character(*), intent(in) :: name
+    integer :: pos, i
+
+    pos = 0
+
+    do i = 1, ns%narrs
+       if (trim(ns%arrnames(i)) == trim(name)) then
+          pos = i
+          exit
+       end if
+    end do
+  end function arrposbyname
 
 
 

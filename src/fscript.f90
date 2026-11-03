@@ -2,6 +2,7 @@
 
 module fscript
   use parse
+  use evalexec
 
   implicit none
 
@@ -32,9 +33,12 @@ contains
        call reseterror()
        progp = 0
        gotstop = .false.
+       gotreturn = .false.
        stdin = -1
        stdout = -1
     end if
+
+    call set_userfn_hook(drive_function)
   end subroutine initfscript
 
 

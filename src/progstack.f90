@@ -38,6 +38,80 @@ contains
   end subroutine resetprogstack
 
 
+  subroutine destroynodefn(progp1)
+    integer, intent(in) :: progp1
+    integer :: j
+
+    do j = 1, size(nodes(progp1)%ints)
+       if (nodes(progp1)%ints(j) > functionstart .and. nodes(progp1)%ints(j) < functionend) &
+          call destroyfn(nodes(progp1)%ints(j))
+    end do
+  end subroutine destroynodefn
+
+
+  function allocnodes(n) result(base)
+    integer, intent(in) :: n
+    integer :: base, i, old
+    type(prognode), dimension(:), pointer :: tmpnodes
+
+    old = size(nodes)
+    base = old + 1
+    allocate(tmpnodes(old+n))
+    tmpnodes(:old) = nodes
+    deallocate(nodes)
+    nodes => tmpnodes
+
+    do i = base, size(nodes)
+       allocate(nodes(i)%ints(allocsize), nodes(i)%stk(allocsize))
+       call initnode(i)
+    end do
+  end function allocnodes
+
+
+  subroutine truncnodes(newsize)
+    integer, intent(in) :: newsize
+    type(prognode), dimension(:), pointer :: tmpnodes
+    integer :: i
+
+    if (size(nodes) <= newsize) return
+
+    do i = newsize+1, size(nodes)
+       if (associated(nodes(i)%stk)) deallocate(nodes(i)%stk)
+       if (associated(nodes(i)%ints)) deallocate(nodes(i)%ints)
+    end do
+
+    allocate(tmpnodes(newsize))
+    tmpnodes(:newsize) = nodes(:newsize)
+    deallocate(nodes)
+    nodes => tmpnodes
+  end subroutine truncnodes
+
+
+  subroutine copynodes(src, dst)
+    integer, intent(in) :: src, dst
+    integer :: n
+
+    nodes(dst)%line = nodes(src)%line
+    nodes(dst)%lenline = nodes(src)%lenline
+    nodes(dst)%evaluated = .false.
+    nodes(dst)%stkp = 0
+    nodes(dst)%linep = 0
+    nodes(dst)%intp = 0
+
+    if (size(nodes(dst)%stk) < size(nodes(src)%stk) .or. &
+         size(nodes(dst)%ints) < size(nodes(src)%ints)) then
+       deallocate(nodes(dst)%stk, nodes(dst)%ints)
+       allocate(nodes(dst)%stk(size(nodes(src)%stk)), &
+            nodes(dst)%ints(size(nodes(src)%ints)))
+    end if
+
+    n = size(nodes(src)%stk)
+    nodes(dst)%stk(:n) = nodes(src)%stk(:n)
+    n = size(nodes(src)%ints)
+    nodes(dst)%ints(:n) = nodes(src)%ints(:n)
+  end subroutine copynodes
+
+
 
   subroutine initprogstack()
     integer :: i
@@ -580,7 +654,7 @@ contains
     integer, intent(in) :: prgp, cll
 
     call pushstk(progp_)
-    call pushints(prgp)
+    call pushints(prgp - progp_bias)
     call pushints(cll)
   end subroutine pushprogp
 
@@ -594,7 +668,7 @@ contains
     call popstk(c)
     call popints(tmp)
     call popints(cll)
-    prgp = tmp
+    prgp = tmp + progp_bias
   end subroutine popprogp
 
 
@@ -607,7 +681,7 @@ contains
     call remstk(c)
     call remints(tmp)
     call remints(cll)
-    prgp = tmp
+    prgp = tmp + progp_bias
   end subroutine remprogp
 
 

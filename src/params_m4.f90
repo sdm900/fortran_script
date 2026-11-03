@@ -316,8 +316,8 @@ module params
        variableend=__I(10), &
        arraystart=__I(1000), &
        arrayend=__I(10), &
-       subroutinestart=__I(1000), &
-       subroutineend=__I(10), &
+       userfnstart=__I(1000), &
+       userfnend=__I(10), &
        maxinds = 10
 
   ! Function definitions
@@ -343,8 +343,12 @@ module params
        elseif_=__I(1), &
        call_=__I(1), &
        subroutine_=__I(1), &
-       return_=__I, &
-       commandend=__I(10), &
+       return_=__I(1), &
+       functiondef_=__I, &
+       commandend=__I(11), &
+! endfunction_ is hardcoded (not __I) so the 9-value __I gap above keeps
+! inlineif_ and friends at their historic absolute values (53190+).
+       endfunction_ = 53180, &
        inlineif_=__I(1), &
        endsubroutine_=__I(1), &
        var_=__I(1), &
@@ -367,7 +371,8 @@ module params
        'elseif     ', &
        'call       ', &
        'subroutine ', &
-       'return     ' &
+       'return     ', &
+       'function   ' &
        /)
 
   integer, dimension(commandstart:commandend), parameter :: &

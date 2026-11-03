@@ -316,8 +316,8 @@ module params
        variableend=1123 , &
        arraystart=1133 , &
        arrayend=2133 , &
-       subroutinestart=2143 , &
-       subroutineend=3143 , &
+       userfnstart=2143 , &
+       userfnend=3143 , &
        maxinds = 10
 
   ! Function definitions
@@ -344,7 +344,9 @@ module params
        call_=53176 , &
        subroutine_=53177 , &
        return_=53178, &
-       commandend=53178 , &
+       functiondef_=53179 , &
+       commandend=53179 , &
+       endfunction_=53180 , &
        inlineif_=53190 , &
        endsubroutine_=53191 , &
        var_=53192 , &
@@ -367,7 +369,8 @@ module params
        'elseif     ', &
        'call       ', &
        'subroutine ', &
-       'return     ' &
+       'return     ', &
+       'function   ' &
        /)
 
   integer, dimension(commandstart:commandend), parameter :: &

@@ -1,0 +1,5 @@
+ab = 5
+function ab(x)
+  ab = x + 1
+end function
+print ab(1)

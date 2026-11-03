@@ -1,4 +1,6 @@
-Need to figure out what to do with evalsubroutine and execsubroutine...
+call/exec subroutines and functions: DONE (driveroutine/drive_function in
+src/evalexec.f90, child namespaces in src/variables.f90, userfn_hook in
+src/interpreter.f90 wired by src/fscript.f90; tests 28/29/34-40).
 
 
 
@@ -20,7 +22,10 @@ go through all the code and clean up the names of functions/subroutines to make 
 
 there is a bug with the reuse of buffers between script execution.  Compiling with -O seems to bring the bug out.
 
-Implement subroutines - every time you issue a call function, it needs to create a new name space for execution of the function/subroutine...  
+Subroutine argument passing: DONE — scalar variable actuals alias the caller
+slot (pass-by-reference); array elements are copy-in/copy-out; other
+expressions are passed as temps; function arguments are always copies
+(functions cannot modify their callers).
 
 
 

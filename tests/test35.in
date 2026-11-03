@@ -1,0 +1,4 @@
+subroutine two(a, b)
+  print a
+end subroutine two
+call two(1)
