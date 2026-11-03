@@ -29,12 +29,15 @@ contains
 
     do i=1, size(nodes)
        do j = 1, size(nodes(i)%ints)
-          if (nodes(i)%ints(j) > functionstart .and. nodes(i)%ints(j) < functionend) &
+          if (nodes(i)%ints(j) > functionstart .and. nodes(i)%ints(j) < functionend &
+               .and. fn_exists(nodes(i)%ints(j))) &
                call destroyfn(nodes(i)%ints(j))
        end do
 
        call initnode(i)
     end do
+
+    call invalidatescratch()
   end subroutine resetprogstack
 
 
@@ -43,7 +46,8 @@ contains
     integer :: j
 
     do j = 1, size(nodes(progp1)%ints)
-       if (nodes(progp1)%ints(j) > functionstart .and. nodes(progp1)%ints(j) < functionend) &
+       if (nodes(progp1)%ints(j) > functionstart .and. nodes(progp1)%ints(j) < functionend &
+            .and. fn_exists(nodes(progp1)%ints(j))) &
           call destroyfn(nodes(progp1)%ints(j))
     end do
   end subroutine destroynodefn
@@ -600,6 +604,10 @@ contains
 
 
 
+  ! Content scan (not a counter): re-driven lines (e.g. a DO inside an
+  ! outer loop) are re-entered via execline with pointers reset but content
+  ! intact, so a counter cleared in resetstkp would undercount. The stk
+  ! arrays are tiny (allocsize scale), so the scan is negligible.
   function numfns()
     integer :: numfns, i
 

@@ -16,6 +16,10 @@ module evalexec
   integer, parameter :: argvar = 1, argarr = 2, argexpr = 3
 
 contains
+
+  subroutine resetsubdepth()
+    subcalldepth = 0
+  end subroutine resetsubdepth
   !
   !  Driver routine
   !
@@ -970,7 +974,18 @@ contains
     nbody = bodyend - progp1
 
     if (nbody > 0) then
-       base = allocnodes(nbody)
+       ! Scratch range is cached across calls (high-water-mark arena):
+       ! refresh from the templates is O(nbody); only a first-call miss
+       ! pays allocnodes. Validity rests on invalidatescratch() being
+       ! called by resetprogstack/clearsubs, after which no truncnodes
+       ! of a live range can occur.
+       if (scratchhit(subidx, progp1, nbody) &
+            .and. scratchbase(subidx)+nbody-1 <= numnodes()) then
+          base = scratchbase(subidx)
+       else
+          base = allocnodes(nbody)
+          call setscratch(subidx, base, progp1, nbody)
+       end if
 
        do i = 0, nbody - 1
           call copynodes(progp1+1+i, base+i)
@@ -1026,8 +1041,7 @@ contains
        do i = 0, nbody - 1
           call destroynodefn(base+i)
        end do
-
-       call truncnodes(base-1)
+       ! Scratch nodes retained (not truncnodes): see alloc-site comment.
     end if
 
     progp_bias = oldbias

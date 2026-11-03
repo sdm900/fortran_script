@@ -90,7 +90,6 @@ contains
   function strname(s)
     type(str), intent(in) :: s
     logical :: strname
-    integer :: i
 
     strname = verify(nodes(progp)%line(s%i:s%e), namechars)==0
   end function strname

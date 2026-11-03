@@ -16,6 +16,10 @@ module parse
   integer, parameter :: maxblockdepth = 1000
 
 contains
+
+  subroutine resetblockdepth()
+    blockdepth = 0
+  end subroutine resetblockdepth
   !
   ! Driver routine
   !

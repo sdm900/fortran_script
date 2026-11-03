@@ -1118,22 +1118,26 @@ contains
 
 
 
-  subroutine createfn(func, funcnumber)
-    type(str) :: func
-    integer, intent(out) :: funcnumber
-    type(cachefn), pointer :: funcstack
+  subroutine getfnslot(slot)
+    integer, intent(out) :: slot
     type(cachefn), dimension(:), pointer :: tmpcachedfuncs
-    integer :: funcstackn, i, lentmpfunc, components, n, slot
-    character(func%e-func%i+1) :: tmpfunc
-    
-    funcnumber = 0
+    integer :: i, n
+
+    slot = 0
     call s_firstrun()
-       
+
     if (errorok) then
        if (nfreefuncs > 0) then
           slot = freefuncs(nfreefuncs)
           nfreefuncs = nfreefuncs - 1
        else
+          ! Live slots are capped by the function ID window (functionend-
+          ! functionstart); without this, cfnp would grow without bound on
+          ! huge scripts and later evaluatefn calls would spuriously fail.
+          if (cfnp+1 > functionend-functionstart .and. nfreefuncs == 0) then
+             call seterror('Too many expressions')
+             return
+          end if
           n = size(cachedfuncs)
           cfnp = cfnp + 1
 
@@ -1153,15 +1157,27 @@ contains
           slot = cfnp
        end if
 
-       funcnumber = functionstart+slot
-       funcstack => cachedfuncs(slot)
-
-       if (.not. associated(funcstack%numbers)) then
-          allocate(funcstack%numbers(allocsize), funcstack%commands(allocsize))
+       if (.not. associated(cachedfuncs(slot)%numbers)) then
+          allocate(cachedfuncs(slot)%numbers(allocsize), cachedfuncs(slot)%commands(allocsize))
        end if
 
-       funcstack%numbers = 0.0d0
-       funcstack%commands = endfunc_
+       cachedfuncs(slot)%numbers = 0.0d0
+       cachedfuncs(slot)%commands = endfunc_
+    end if
+  end subroutine getfnslot
+
+
+  subroutine createfn(func, funcnumber)
+    type(str) :: func
+    integer, intent(out) :: funcnumber
+    integer :: funcstackn, lentmpfunc, components, slot
+    character(func%e-func%i+1) :: tmpfunc
+
+    funcnumber = 0
+    call getfnslot(slot)
+
+    if (errorok .and. slot > 0) then
+       funcnumber = functionstart+slot
        funcstackn = 0
        tmpfunc = linestr(func)
        tmpfunc = f_clean(tmpfunc)
@@ -1170,7 +1186,7 @@ contains
        components = 0
        parsedepth = 0
 
-       call s_parsefn(tmpfunc(:lentmpfunc), lentmpfunc, funcstack, funcstackn, components)
+       call s_parsefn(tmpfunc(:lentmpfunc), lentmpfunc, cachedfuncs(slot), funcstackn, components)
     end if
   end subroutine createfn
 
@@ -1178,47 +1194,14 @@ contains
   subroutine createfnstr(expr, funcnumber)
     character(*), intent(in) :: expr
     integer, intent(out) :: funcnumber
-    type(cachefn), pointer :: funcstack
-    type(cachefn), dimension(:), pointer :: tmpcachedfuncs
-    integer :: funcstackn, i, lentmpfunc, components, n, slot
+    integer :: funcstackn, lentmpfunc, components, slot
     character(len(expr)) :: tmpexpr
 
     funcnumber = 0
-    call s_firstrun()
+    call getfnslot(slot)
 
-    if (errorok) then
-       if (nfreefuncs > 0) then
-          slot = freefuncs(nfreefuncs)
-          nfreefuncs = nfreefuncs - 1
-       else
-          n = size(cachedfuncs)
-          cfnp = cfnp + 1
-
-          if (cfnp > n) then
-             allocate(tmpcachedfuncs(cfnp+allocsize))
-             tmpcachedfuncs(:n) = cachedfuncs
-             deallocate(cachedfuncs)
-             cachedfuncs => tmpcachedfuncs
-
-             do i = n+1, size(cachedfuncs)
-                allocate(cachedfuncs(i)%commands(allocsize), cachedfuncs(i)%numbers(allocsize))
-                cachedfuncs(i)%commands = endfunc_
-                cachedfuncs(i)%numbers = 0.0d0
-             end do
-          end if
-
-          slot = cfnp
-       end if
-
+    if (errorok .and. slot > 0) then
        funcnumber = functionstart+slot
-       funcstack => cachedfuncs(slot)
-
-       if (.not. associated(funcstack%numbers)) then
-          allocate(funcstack%numbers(allocsize), funcstack%commands(allocsize))
-       end if
-
-       funcstack%numbers = 0.0d0
-       funcstack%commands = endfunc_
        funcstackn = 0
        tmpexpr = trim(expr)
        tmpexpr = f_clean(tmpexpr)
@@ -1227,9 +1210,10 @@ contains
        components = 0
        parsedepth = 0
 
-       call s_parsefn(tmpexpr(:lentmpfunc), lentmpfunc, funcstack, funcstackn, components)
+       call s_parsefn(tmpexpr(:lentmpfunc), lentmpfunc, cachedfuncs(slot), funcstackn, components)
     end if
   end subroutine createfnstr
+
 
 
 
@@ -1265,6 +1249,28 @@ contains
   
   
   
+  function fn_exists(funcnumber) result(exists)
+    integer, intent(in) :: funcnumber
+    logical :: exists
+    integer :: tmp
+
+    call s_firstrun()
+    tmp = funcnumber - functionstart
+
+    ! Nested ifs: Fortran .and. does not short-circuit, so the
+    ! bounds-associated access must be guarded structurally.
+    exists = .false.
+    if (tmp >= 1) then
+       if (tmp <= size(cachedfuncs)) then
+          if (functionstart+tmp <= functionend) then
+             exists = associated(cachedfuncs(tmp)%commands)
+          end if
+       end if
+    end if
+  end function fn_exists
+
+
+
   recursive subroutine evaluatefn(funcnumber, number)
     integer, intent(in) :: funcnumber
     real(fdp), intent(out) :: number
@@ -1276,7 +1282,6 @@ contains
     number = 0.0d0
     
     if (tmp > size(cachedfuncs) .or. tmp < 1 .or. functionstart+tmp > functionend) then
-       write(*,*) funcnumber, tmp
        call seterror('Function does not exist')
     else if (associated(cachedfuncs(tmp)%commands)) then
        funcstack = cachedfuncs(tmp)

@@ -300,7 +300,7 @@ program check
   !
   ! Test 59
   !
-  call checkscript("test59", "2 Array out of bounds for index    1")
+  call checkscript("test59", "2 Array out of bounds for index1")
 
   !
   ! Test 60
@@ -311,5 +311,15 @@ program check
   ! Test 61
   !
   call checkscript("test61")
+
+  !
+  ! Test 62
+  !
+  call checkscript("test62", "1002 Too many variables")
+
+  !
+  ! Test 63
+  !
+  call checkscript("test63", "1002 Too many arrays")
 
 end program check

@@ -9,7 +9,7 @@ module fscript
   private
   public :: interpret, number_scalars, scalars, get_scalar,&
        & number_arrays, arrays, get_array_dims, get_array_lb,&
-       & get_array_ub, get_array
+       & get_array_ub, get_array, get_array_mask
 
 contains
 
@@ -25,18 +25,22 @@ contains
        firstrun = .false.
     end if
     
-    if (calldepth == 1) then
-       call resetvarstack()
-       call clearsubs()
-       call resetprogstack()
-       call resetcallstack()
-       call reseterror()
-       progp = 0
-       gotstop = .false.
-       gotreturn = .false.
-       stdin = -1
-       stdout = -1
-    end if
+    ! Unconditional: a previous interpret() must never poison the next
+    ! one, even if an error unwind left calldepth/blockdepth/subcalldepth
+    ! away from their rest values (all push/pop paths are balanced, but
+    ! the next call must not depend on that).
+    call resetvarstack()
+    call clearsubs()
+    call resetprogstack()
+    call resetcallstack()
+    call reseterror()
+    call resetsubdepth()
+    call resetblockdepth()
+    progp = 0
+    gotstop = .false.
+    gotreturn = .false.
+    stdin = -1
+    stdout = -1
 
     call set_userfn_hook(drive_function)
   end subroutine initfscript
@@ -225,4 +229,31 @@ contains
        err = trim(tmp)//': array size different to requested array size'
     end if
   end subroutine get_array
+
+
+
+  ! Initialisation mask: mask(k) is .false. where the element was never
+  ! assigned (get_array returns 0.0 there, indistinguishable otherwise).
+  subroutine get_array_mask(s, mask, n, err)
+    character(*), intent(in) :: s
+    logical, dimension(n), intent(out) :: mask
+    integer, intent(in) :: n
+    character(*), optional, intent(out) :: err
+    character(len(s)) :: tmp
+    integer :: i, l
+
+    tmp = TRIM(s)
+    l = len_trim(tmp)
+    i = arrstrnum(tmp, l)
+
+    if (i == 0) then
+       mask = .false.
+       if (present(err)) err = trim(tmp)//': array variable does not exist'
+    elseif (n == arraysize(i)) then
+       call getarraymask(i, mask, n)
+       if (present(err)) err = 'OK'
+    elseif (present(err)) then
+       err = trim(tmp)//': array size different to requested array size'
+    end if
+  end subroutine get_array_mask
 end module fscript

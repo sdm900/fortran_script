@@ -26,6 +26,7 @@ module variables
   type sub_
      integer :: progp, ninds, kind, endprogp, ndummies
      integer :: active
+     integer :: scratch_base, scratch_n, scratch_tstart
      character(namelength) :: name
      character(namelength), dimension(maxinds) :: dummies
      integer :: lenname
@@ -164,6 +165,9 @@ contains
     subs(nsubs)%endprogp = endprogp
     subs(nsubs)%ndummies = ndnames
     subs(nsubs)%active = 0
+    subs(nsubs)%scratch_base = 0
+    subs(nsubs)%scratch_n = 0
+    subs(nsubs)%scratch_tstart = 0
     subs(nsubs)%name = linestr(s)
     subs(nsubs)%lenname = s%e-s%i+1
 
@@ -176,7 +180,51 @@ contains
 
   subroutine clearsubs()
     nsubs = 0
+    call invalidatescratch()
   end subroutine clearsubs
+
+
+
+  subroutine invalidatescratch()
+    integer :: i
+
+    do i = 1, nsubs
+       subs(i)%scratch_base = 0
+       subs(i)%scratch_n = 0
+       subs(i)%scratch_tstart = 0
+    end do
+  end subroutine invalidatescratch
+
+
+
+  function scratchhit(idx, tstart, n) result(hit)
+    integer, intent(in) :: idx, tstart, n
+    logical :: hit
+
+    hit = idx >= 1 .and. idx <= nsubs &
+         .and. subs(idx)%scratch_base > 0 &
+         .and. subs(idx)%scratch_n == n &
+         .and. subs(idx)%scratch_tstart == tstart
+  end function scratchhit
+
+
+
+  function scratchbase(idx) result(base)
+    integer, intent(in) :: idx
+    integer :: base
+
+    base = subs(idx)%scratch_base
+  end function scratchbase
+
+
+
+  subroutine setscratch(idx, base, tstart, n)
+    integer, intent(in) :: idx, base, tstart, n
+
+    subs(idx)%scratch_base = base
+    subs(idx)%scratch_tstart = tstart
+    subs(idx)%scratch_n = n
+  end subroutine setscratch
 
 
 
@@ -456,6 +504,16 @@ contains
        ns%arrnames(ns%narrs) = nss(tnns)%arrnames(i)
        ns%lenarrnames(ns%narrs) = nss(tnns)%lenarrnames(i)
     end do
+
+    ! A child inherits dummies plus the caller's entries, so it can exceed
+    ! the expression-ID windows even when the parent did not (same aliasing
+    ! hazard as createvar/createarr). The driver skips the body on error
+    ! and dropchild() unwinds the partial namespace.
+    if (ns%nvars > variableend-variablestart+1) then
+       call seterror('Too many variables')
+    else if (ns%narrs > arrayend-arraystart+1) then
+       call seterror('Too many arrays')
+    end if
   end subroutine childnamespace
 
 
@@ -490,7 +548,7 @@ contains
 
 
   subroutine resetvarstack()
-    integer :: i, var, arr
+    integer :: i, arr
 
     nvars = 0
     narrs = 0
@@ -514,8 +572,12 @@ contains
     do i = ns%narrinds+1, ns%narrs
        arr = ns%arrs(i)
        arrvals(arr)%ndims = 0
-       if (associated(arrvals(arr)%lb)) deallocate(arrvals(arr)%lb, arrvals(arr)%ub, &
-            arrvals(arr)%strd, arrvals(arr)%vals, arrvals(arr)%mask)
+       if (associated(arrvals(arr)%lb)) then
+          deallocate(arrvals(arr)%lb, arrvals(arr)%ub, &
+               arrvals(arr)%strd, arrvals(arr)%vals, arrvals(arr)%mask)
+          nullify(arrvals(arr)%lb, arrvals(arr)%ub, &
+               arrvals(arr)%strd, arrvals(arr)%vals, arrvals(arr)%mask)
+       end if
        ns%arrnames(i) = ''
        ns%lenarrnames(i) = 0
     end do
@@ -616,6 +678,13 @@ contains
     integer, dimension(:), pointer :: tlenvarnames, tvars
 
     if (varnum(var) /= 0) return
+    ! Expression IDs (variablestart+i) only span variableend-variablestart+1
+    ! slots; beyond that names would alias into the array ID range and
+    ! corrupt parsing (was a segfault past ~1000 variables).
+    if (ns%nvars+1 > variableend-variablestart+1) then
+       call seterror('Too many variables')
+       return
+    end if
     
     ns%nvars = ns%nvars + 1
     nvars = nvars + 1
@@ -780,12 +849,18 @@ contains
     integer, dimension(:), pointer :: tlenarrnames, tarrs
 
     if (ndims > maxinds) then
-       write(txtnum, '(i5)') maxinds
+       write(txtnum, '(i0)') maxinds
        call seterror('Maximum number of array dimensions is '//txtnum)
        return
     end if
 
     if (arraynum(array) /= 0) return
+    ! Same ID-window rationale as createvar (arraystart+i must stay
+    ! within arrayend, else names alias into the user-function range).
+    if (ns%narrs+1 > arrayend-arraystart+1) then
+       call seterror('Too many arrays')
+       return
+    end if
 
     ns%narrs = ns%narrs + 1
     narrs = narrs + 1
@@ -900,7 +975,7 @@ contains
   function arrayval(array, inds, ndims)
     integer, intent(in) :: array, ndims
     integer, dimension(ndims), intent(in) :: inds
-    character(5) :: txtnum
+    character(16) :: txtnum
     real(fdp) :: arrayval
     integer :: j, a
 
@@ -909,7 +984,7 @@ contains
     if (any(arrvals(a)%lb>inds .or. inds>arrvals(a)%ub)) then
        do j = 1, ndims
           if (arrvals(a)%lb(j)>inds(j) .or. inds(j)>arrvals(a)%ub(j)) then
-             write(txtnum, '(i5)') j
+             write(txtnum, '(i0)') j
              exit
           end if
        end do
@@ -965,6 +1040,18 @@ contains
     a = ns%arrs(array)
     val = arrvals(a)%vals(:n)
   end subroutine getarray
+
+
+
+  subroutine getarraymask(array, mask, n)
+    integer, intent(in) :: array
+    integer, intent(in) :: n
+    logical, dimension(n), intent(out) :: mask
+    integer :: a
+
+    a = ns%arrs(array)
+    mask = arrvals(a)%mask(:n)
+  end subroutine getarraymask
 
 
 

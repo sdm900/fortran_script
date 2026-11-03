@@ -208,6 +208,8 @@ print a(0,-1)
 
 - Up to 10 dimensions per array; up to 10,000,000 elements total
   (larger requests fail with `Array exceeds maximum size`).
+  Up to about 1000 variables and 1000 arrays per script
+  (larger requests fail with `Too many variables` / `Too many arrays`).
 - Reading an element that was never assigned is an error
   (`Array value used before it is initialised`); reading outside the
   bounds is an error too.
@@ -247,6 +249,8 @@ positive arguments, `sqrt` needs a non-negative one, `acos`/`asin` need
 - Lines are cut at 1024 characters; names at 32 characters.
 - Expression nesting is capped (1000 deep) and block nesting too.
 - Call depth is capped (1000 deep); recursion is not supported.
+- Expression slots are capped (about 50000 live sub-expressions;
+  larger scripts fail with `Too many expressions`).
 - Whole arrays cannot be passed to subroutines — pass elements instead.
 - **Not implemented:** `open` / `close` (no file I/O), standalone `elseif`.
 - No integer type: every value is double precision, comparisons included.
@@ -276,6 +280,15 @@ The interpreter is also a library. `src/fscript.f90` exposes
 `interpret(infile, outfile, err)` plus inspection routines
 (`number_scalars`, `scalars`, `get_scalar`, `number_arrays`, `arrays`,
 `get_array_dims`, `get_array_lb/ub`, `get_array`) so a host Fortran
-program can run a script and read its variables back. See
-`src/checkscrpt.f90` for a worked example and `src/check.f90` for the
+program can run a script and read its variables back. `get_array_mask`
+returns which elements were actually assigned (`get_array` reads
+unassigned elements as `0.0`, indistinguishable otherwise).
+See `src/checkscrpt.f90` for a worked example and `src/check.f90` for the
 regression suite (run it with `make test` from the repo root).
+
+Error messages are echoed to standard output (or to `outfile` when one
+is passed) as well as returned in `err`. There is no in-library timeout
+or memory cap: a script with a bare `do` loop or a 10,000,000-element
+array can hang or exhaust a host. Hosts running untrusted scripts
+should enforce their own wall-clock timeout around `interpret()` and
+their own element budget.

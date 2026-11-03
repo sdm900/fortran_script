@@ -113,6 +113,34 @@ program embedcheck
   call get_scalar('q', x, err)
   call check(x == 7.0d0, 'T8 value after routine error')
 
+  ! T9: initialisation mask distinguishes assigned from never-assigned
+  ! elements (get_array returns 0.0 for both)
+  call run_script((/ character(len=64) :: &
+       'm(1) = 5', &
+       'm(3) = 7' /), err)
+  call check(trim(err) == 'OK', 'T9 interpret ok', err)
+  call get_array_dims('m', n, err)
+  allocate(lb(n), ub(n))
+  call get_array_lb('m', lb, n, err)
+  call get_array_ub('m', ub, n, err)
+  allocate(a(product(ub - lb + 1)))
+  call get_array('m', a, size(a), err)
+  call check(all(a == (/ 5.0d0, 0.0d0, 7.0d0 /)), 'T9 values')
+  deallocate(a)
+  allocate(a(product(ub - lb + 1)))
+  block
+    logical, dimension(:), allocatable :: m
+    logical, dimension(1) :: m1
+    allocate(m(size(a)))
+    call get_array_mask('m', m, size(m), err)
+    call check(trim(err) == 'OK' .and. all(m .eqv. (/ .true., .false., .true. /)), &
+         'T9 mask')
+    deallocate(m)
+    call get_array_mask('nosuch', m1, 1, err)
+    call check(trim(err) == 'nosuch: array variable does not exist', 'T9 missing')
+  end block
+  deallocate(a, lb, ub)
+
   write(*, '(a,i0,a,i0,a)') 'EmbedCheck: ', npass, ' passed, ', nfail, ' failed'
   if (nfail > 0) stop 1
 

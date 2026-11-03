@@ -61,6 +61,14 @@ contains
 
 
 
+  function numnodes()
+    integer :: numnodes
+
+    numnodes = size(nodes)
+  end function numnodes
+
+
+
   function linep()
     integer :: linep
 
